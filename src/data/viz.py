@@ -29,4 +29,3 @@ def plot_equity_curve(equity: pd.Series, benchmark: pd.Series | None = None, tit
     plt.tight_layout()
     plt.show()
 
-
