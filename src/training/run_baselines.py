@@ -17,7 +17,7 @@ except Exception:
 
 # Fallback bridge to construct a default cfg if your pipeline requires one
 try:
-    from src.data.config_bridge import make_default_cfg  # added below
+    from src.data.config_bridge import make_default_cfg  # optional helper
 except Exception:
     make_default_cfg = None
 
@@ -25,18 +25,26 @@ from src.training.evaluate import run_baselines
 
 
 def _build_cfg(args):
-    """Return a config object/dict suitable for prepare_dataset(cfg=...).
+    """
+    Return a config object/dict suitable for prepare_dataset(cfg=...).
     Priority:
-    1) --config path (YAML) if provided
+    1) --config path (YAML) if provided and PyYAML available
     2) src.data.config_bridge.make_default_cfg if available
     3) a minimal dict with common keys
     """
     # 1) Try YAML path
     if args.config is not None:
-        import yaml
-        with open(args.config, "r") as f:
-            cfg = yaml.safe_load(f)
-        return cfg
+        try:
+            import yaml  # type: ignore
+        except Exception:
+            print(
+                "[run_baselines] Warning: PyYAML not installed; ignoring --config and using defaults.",
+                file=sys.stderr,
+            )
+        else:
+            with open(args.config, "r") as f:
+                cfg = yaml.safe_load(f)
+            return cfg
 
     # 2) Try bridge (handles dataclass/DataConfig etc.)
     if make_default_cfg is not None:
@@ -64,8 +72,12 @@ def main():
     parser.add_argument("--ticker", type=str, default="BTC-USD")
     parser.add_argument("--interval", type=str, default="1d")
     parser.add_argument("--use-xgb", action="store_true")
-    parser.add_argument("--pooling", type=str, default="last", choices=["last", "mean", "flatten_last_k"])
-    parser.add_argument("--out", type=Path, default=Path("data/artifacts/baselines_metrics.csv"))
+    parser.add_argument(
+        "--pooling", type=str, default="last", choices=["last", "mean", "flatten_last_k"]
+    )
+    parser.add_argument(
+        "--out", type=Path, default=Path("data/artifacts/baselines_metrics.csv")
+    )
     parser.add_argument("--config", type=str, default=None, help="Path to data config YAML (optional)")
     args = parser.parse_args()
 
@@ -81,7 +93,7 @@ def main():
     px = None
     if load_prices is not None:
         try:
-            px = load_prices(args.ticker, args.interval)
+            px = load_prices(args.ticker, args.interval)  # should be a Series(DateTimeIndex)
         except Exception:
             px = None
 
@@ -99,7 +111,7 @@ def main():
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out, index=False)
-    print("Baseline metrics saved to:", args.out)
+    print("\nBaseline metrics saved to:", args.out)
     print(df)
 
 

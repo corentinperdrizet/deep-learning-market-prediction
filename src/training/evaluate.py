@@ -26,6 +26,50 @@ def evaluate_regressor(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, Any]
     return evaluate_regression_metrics(y_true, y_pred)
 
 
+def _coerce_prices(
+    prices: Any,
+    fallback_index: Optional[pd.Index] = None,
+) -> Optional[pd.Series]:
+    """
+    Try to convert `prices` into a pd.Series with a DateTimeIndex.
+    Returns None if not possible.
+    """
+    if isinstance(prices, pd.Series):
+        if isinstance(prices.index, pd.DatetimeIndex):
+            return prices
+        # Try to convert index to datetime
+        try:
+            idx = pd.to_datetime(prices.index)
+            return pd.Series(prices.values, index=idx, name=getattr(prices, "name", "close"))
+        except Exception:
+            return None
+
+    if isinstance(prices, pd.DataFrame):
+        # Prefer common close columns
+        for col in ("Close", "Adj Close", "close", "adj_close"):
+            if col in prices.columns:
+                s = prices[col]
+                break
+        else:
+            # fallback to first column
+            s = prices.iloc[:, 0]
+        if isinstance(prices.index, pd.DatetimeIndex):
+            return pd.Series(s.values, index=prices.index, name=getattr(s, "name", "close"))
+        try:
+            idx = pd.to_datetime(prices.index)
+            return pd.Series(s.values, index=idx, name=getattr(s, "name", "close"))
+        except Exception:
+            return None
+
+    # If it's just an array/list and we have a datetime index to align with
+    if isinstance(prices, (np.ndarray, list)) and isinstance(fallback_index, pd.DatetimeIndex):
+        arr = np.asarray(prices).ravel()
+        if len(arr) == len(fallback_index):
+            return pd.Series(arr, index=fallback_index, name="close")
+
+    return None
+
+
 def run_baselines(
     dataset: Dict[str, Any],
     prices: Optional[pd.Series] = None,
@@ -46,12 +90,11 @@ def run_baselines(
     y_test = dataset["y_test"].astype(int)
 
     # Build an index for alignment (assumes dataset['idx'] provides slices or indices)
-    # Fallback: create a simple RangeIndex if not available
     idx = dataset.get("idx", {})
-    index_val = idx.get("val")  # may be slice or pandas index
+    index_val = idx.get("val")
     index_test = idx.get("test")
 
-    # If the pipeline doesn't provide actual pandas indices, we create dummy ones
+    # If the pipeline doesn't provide actual pandas indices, create dummy ones
     if isinstance(index_val, (np.ndarray, list)):
         index_val = pd.Index(index_val)
     elif index_val is None:
@@ -86,21 +129,36 @@ def run_baselines(
             m = evaluate_classifier(y_split, proba)
             rows.append({"model": "xgb[flat_k=5]", "split": split_name, **m})
 
-    # 4) SMA crossover (if prices provided)
-    if prices is not None:
-        sma = SMACrossoverClassifier(50, 200).fit(prices)
-        for split_name, y_split, idx_split in [
-            ("val", y_val, index_val),
-            ("test", y_test, index_test),
-        ]:
-            proba = sma.predict_proba(idx_split)
-            # Ensure lengths match (may need alignment/trim)
-            n = min(len(proba), len(y_split))
-            m = evaluate_classifier(y_split[:n], proba[:n])
-            rows.append({"model": "sma_50_200", "split": split_name, **m})
+    # 4) SMA crossover (SAFE): coerce prices or skip silently
+    sma_prices = _coerce_prices(
+        prices,
+        # best-effort datetime index (prefer test split index if datetime-like)
+        fallback_index=index_test if isinstance(index_test, pd.DatetimeIndex) else None,
+    )
+
+    if isinstance(sma_prices, pd.Series) and isinstance(sma_prices.index, pd.DatetimeIndex):
+        try:
+            sma = SMACrossoverClassifier(50, 200).fit(sma_prices)
+            for split_name, y_split, idx_split in [
+                ("val", y_val, index_val),
+                ("test", y_test, index_test),
+            ]:
+                # If split index is not datetime, align by intersection of positions
+                if isinstance(idx_split, pd.DatetimeIndex):
+                    proba = sma.predict_proba(idx_split)
+                else:
+                    # fallback: just slice the last n probabilities by length
+                    proba = sma.predict_proba(sma_prices.index)
+                n = min(len(proba), len(y_split))
+                m = evaluate_classifier(y_split[:n], proba[:n])
+                rows.append({"model": "sma_50_200", "split": split_name, **m})
+        except Exception as e:
+            # Skip SMA if anything goes wrong; don't crash the whole run
+            print(f"[run_baselines] Skipping SMA baseline: {e}", file=sys.stderr)
+    else:
+        print("[run_baselines] Skipping SMA baseline: invalid or missing price series.", file=sys.stderr)
 
     df = pd.DataFrame(rows)
-    # Optional ordering of columns
     preferred = [
         "model",
         "split",

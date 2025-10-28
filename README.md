@@ -13,30 +13,78 @@ The project demonstrates:
 
 ## 🧱 Project Structure
 
+### Implemented
+- Baselines (`src/models/baselines.py`)
+  - Buy & Hold, SMA(50/200), Logistic Regression, (XGBoost optional)
+- Deep Learning
+  - `LSTMClassifier` (`src/models/lstm.py`): multi-layer LSTM with dropout and optional bidirectionality; binary logit output for next-day direction
+
+### Training & Evaluation
+- `src/training/run_baselines.py`: trains/evaluates baselines and writes `data/artifacts/baselines_metrics.csv`
+- `src/training/run_lstm.py`: end-to-end LSTM training with early stopping and test evaluation
+- `src/training/trainer.py`: training loop, validation, scheduler, checkpoints, CSV logs
+- `src/training/dataloaders.py`: numpy → TensorDataset/DataLoader (MPS-aware pin_memory)
+- `src/training/metrics.py` / `evaluate.py`: common metrics/eval helpers
+
+### Data
+- `src/data/dataset.py`: from raw OHLCV to model-ready sequences (no leakage)
+- `src/data/{config,features,preprocessing,scaling,sequences,quality,loaders,paths}.py`
+
+### Visualization
+- `src/viz/plot_training.py`: exports loss/metrics/lr plots from `data/artifacts/lstm_logs.csv` to `experiments/figures/`
+
+### App & Backtesting (to come)
+- `src/app/`: Streamlit dashboard to visualize signals, metrics and PnL curves
+- `src/backtest/`: execution rules, simple strategy sim, cum. returns, Sharpe, drawdown
+
+### Current Repo Layout (excerpt)
 ```
 deep-learning-market-prediction/
 ├── data/
-│   ├── raw/            # Raw downloaded OHLCV data
-│   ├── processed/      # Cleaned, feature-engineered datasets
-│   └── artifacts/      # Saved scalers, trained models, etc.
+│   ├── artifacts/
+│   │   ├── baselines_metrics.csv
+│   │   ├── lstm_classifier.pt
+│   │   ├── lstm_logs.csv
+│   │   ├── lstm_test_report.json
+│   │   └── scaler.joblib
+│   ├── processed/
+│   │   └── BTC-USD_1d_dataset.parquet
+│   └── raw/
+│       └── BTC-USD_1d.parquet
+├── experiments/
+│   └── figures/
+│       ├── loss.png
+│       ├── lr.png
+│       └── metrics.png
 ├── src/
-│   ├── data/           # Data processing module (fully functional)
-│   │   ├── __init__.py
+│   ├── data/
 │   │   ├── config.py
-│   │   ├── loaders.py
-│   │   ├── quality.py
+│   │   ├── config_bridge.py
+│   │   ├── dataset.py
 │   │   ├── features.py
+│   │   ├── loaders.py
+│   │   ├── paths.py
 │   │   ├── preprocessing.py
+│   │   ├── quality.py
 │   │   ├── scaling.py
 │   │   ├── sequences.py
-│   │   ├── viz.py
-│   │   └── dataset.py
-│   ├── models/         # LSTM, Transformer, Baselines (to be implemented)
-│   ├── training/       # Training loops, metrics, evaluation (to be added)
-│   ├── backtest/       # Strategy simulation and performance metrics (to be added)
-│   └── app/            # Streamlit dashboard (to be added)
-└── README.md           # Project documentation
+│   │   └── viz.py
+│   ├── models/
+│   │   ├── baselines.py
+│   │   └── lstm.py
+│   ├── training/
+│   │   ├── dataloaders.py
+│   │   ├── evaluate.py
+│   │   ├── metrics.py
+│   │   ├── run_baselines.py
+│   │   ├── run_lstm.py
+│   │   ├── trainer.py
+│   │   └── utils.py
+│   └── viz/
+│       └── plot_training.py
+└── notebooks/, app/, backtest/, labeling/, utils/, tst/
 ```
+
 
 ---
 
@@ -176,16 +224,147 @@ After execution (`python -m src.data.dataset`), the function `prepare_dataset()`
 | `meta` | `dict` | Dataset metadata (ticker, horizon, etc.) |
 
 Example:
-`python
+```python
 {
   "X_train": (1561, 64, 13),
   "y_train": (1561,),
   "features": ["log_ret", "vol_20", "rsi_14", ...],
   "meta": {"ticker": "BTC-USD", "interval": "1d", "label_type": "direction"}
 }
-`python
+```
 
 ---
+## ⚙️ Step 2 — Baseline Models
+
+### 🎯 Objective
+Before training deep learning models, we first establish **simple baseline models** to understand how much predictive power can be achieved without complex architectures.  
+These baselines act as **reference points** — they show what level of accuracy we can get using traditional or rule-based methods.
+
+---
+
+### 🧠 Why Baselines `
+In financial forecasting, especially for short-term movements, markets are very noisy.  
+By testing simple models first, we can verify:
+- that our **data pipeline** and **labels** are correct,
+- that the task is **not trivially random**,  
+- and later, if a deep learning model truly brings an **improvement** beyond these simple references.
+
+---
+
+### 🧱 Implemented Models
+The following baseline models estimate the **probability that the price goes up** (class 1) on the next step:
+
+| Model | Description |
+|--------|-------------|
+| **Buy & Hold** | Predicts the base rate (average probability of upward moves). Serves as a naive benchmark. |
+| **SMA Crossover (50/200)** | Rule-based signal: predicts `up` when the 50-day moving average is above the 200-day average. |
+| **Logistic Regression** | Simple statistical model trained on tabular features (returns, RSI, MACD, etc.). |
+| **XGBoost (optional)** | Gradient boosting classifier on flattened historical features; adds nonlinear relationships. |
+
+---
+
+### 🧪 Evaluation
+All baselines are trained on the **training set** and evaluated on **validation** and **test** splits to measure generalization.  
+Metrics include:
+
+- Accuracy and F1-score (directional correctness)
+- ROC-AUC and PR-AUC (probabilistic discrimination)
+- Brier score (probability calibration)
+
+Results are saved in `data/artifacts/baselines_metrics.csv`.
+
+---
+
+### 📈 Interpretation
+If the baselines reach around 0.50 ROC-AUC (random-like), it means the market is difficult to predict at that horizon.  
+Any future deep learning model (LSTM, Transformer) should aim to **outperform these baselines** to demonstrate added predictive value.
+
+---
+
+# ⚙️ Step 3 — First DL Model (LSTM/GRU)
+
+## 🎯 Goal
+Validate an end-to-end sequential deep model that takes sliding windows of features and predicts the next-day direction (binary classification). This step adds a production-style training loop with early stopping, metrics, checkpoints and plots.
+
+---
+
+## 🧩 What was implemented
+
+- Models
+  - `LSTMClassifier` in `src/models/lstm.py`  
+    - Inputs: (batch, seq_len, n_features)  
+    - Output: logits (1-dim), trained with `BCEWithLogitsLoss`  
+    - Default: hidden=128, layers=2, dropout=0.2, optional bidirectional
+
+- Data → Torch
+  - `src/training/dataloaders.py` converts numpy arrays to `TensorDataset` and `DataLoader`
+  - No temporal shuffling within sequences; batch-level shuffling is allowed
+
+- Training utilities
+  - `src/training/utils.py`  
+    - Global seed  
+    - Device selection with Apple GPU (MPS) support: prefers CUDA → MPS → CPU  
+    - Checkpoint helpers
+
+- Trainer
+  - `src/training/trainer.py`  
+    - train_one_epoch / validate_one_epoch  
+    - Metrics: PR-AUC (Average Precision), ROC-AUC, F1  
+    - Early stopping on validation PR-AUC by default  
+    - ReduceLROnPlateau scheduler (no `verbose` for full torch compatibility)  
+    - Artifacts:
+      - Best checkpoint → `data/artifacts/lstm_classifier.pt`
+      - Logs per epoch → `data/artifacts/lstm_logs.csv` (train/val loss, PR-AUC, ROC-AUC, F1, LR)
+
+- Runner
+  - `src/training/run_lstm.py`  
+    - Builds a `DataConfig` and calls `prepare_dataset(cfg, seq_len)`  
+    - CLI overrides: `--ticker`, `--interval`, `--start`, `--test-start`, `--horizon`, `--seq-len`, `--hidden`, `--layers`, `--dropout`, `--batch`, `--epochs`, `--lr`, `--pos-weight` etc.  
+    - Tests the best checkpoint on the test split and writes `data/artifacts/lstm_test_report.json`
+
+- Plots
+  - `src/viz/plot_training.py`  
+    - Generates `experiments/figures/loss.png`, `metrics.png`, `lr.png` from `lstm_logs.csv`  
+    - Optional smoothing via `--smooth 3`
+
+---
+
+## ▶️ How to run
+
+- Train LSTM with defaults:
+  - `python -m src.training.run_lstm`
+
+- Override example:
+  - `python -m src.training.run_lstm --ticker BTC-USD --interval 1d --start 2018-01-01 --test-start 2023-01-01 --horizon 1 --seq-len 64 --hidden 128 --layers 2 --dropout 0.2 --batch 256 --epochs 30 --lr 1e-3`
+
+- Make plots:
+  - `python -m src.viz.plot_training --logs data/artifacts/lstm_logs.csv --outdir experiments/figures --smooth 3`
+
+Artifacts are written to:
+- `data/artifacts/lstm_classifier.pt`
+- `data/artifacts/lstm_logs.csv`
+- `data/artifacts/lstm_test_report.json`
+- `experiments/figures/*.png`
+
+---
+
+## 🧪 Example result (your run)
+
+- Early stopping on validation PR-AUC  
+- Test set: PR-AUC ≈ 0.529, ROC-AUC ≈ 0.512  
+- Interpretation: weak but non-zero predictive signal at 1-day horizon, to be compared against baselines on the same splits.
+
+---
+
+## 📈 Tips to improve
+
+- Class imbalance: set `--pos-weight` if class 1 is rarer  
+- Try `--bidirectional` and longer `--seq-len` (e.g., 96 or 128)  
+- Feature engineering: add lags/rolling percentiles, etc.  
+- Seed sweep (3–5 runs) to stabilize metrics
+
+---
+
 
 ## 🚀 Next Steps
 - [ ] Implement **LSTM and Transformer** architectures (`src/models/`)

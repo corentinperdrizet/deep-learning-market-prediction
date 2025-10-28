@@ -74,10 +74,23 @@ def ensure_daily_calendar(df: pd.DataFrame) -> pd.DataFrame:
     df = df[~df.index.duplicated(keep="first")]
     return df
 
+# src/data/loaders.py (extrait sécurisé)
+import pandas as pd
+import yfinance as yf
+
 def load_prices(ticker: str, interval: str = "1d") -> pd.Series:
     df = yf.download(ticker, period="max", interval=interval, auto_adjust=True, progress=False)
     if "Close" not in df.columns:
+        # yfinance parfois renvoie une Series; on la transforme
+        if isinstance(df, pd.Series):
+            s = df.copy()
+            s.name = ticker
+            if not isinstance(s.index, pd.DatetimeIndex):
+                s.index = pd.to_datetime(s.index)
+            return s
         raise ValueError("Downloaded data missing 'Close' column")
     s = df["Close"].copy()
     s.name = ticker
+    if not isinstance(s.index, pd.DatetimeIndex):
+        s.index = pd.to_datetime(s.index)
     return s
