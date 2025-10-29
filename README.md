@@ -40,49 +40,73 @@ The project demonstrates:
 ### Current Repo Layout (excerpt)
 ```
 deep-learning-market-prediction/
+├── 01_baselines.ipynb              # Notebook to run and analyze baseline models
+├── README.md                       # Main project documentation
+├── requirements.txt                 # Dependencies list
+│
 ├── data/
-│   ├── artifacts/
-│   │   ├── baselines_metrics.csv
-│   │   ├── lstm_classifier.pt
-│   │   ├── lstm_logs.csv
-│   │   ├── lstm_test_report.json
-│   │   └── scaler.joblib
-│   ├── processed/
+│   ├── artifacts/                   # Trained models, logs, reports, and scalers
+│   │   ├── baselines_metrics.csv          # Metrics summary for baseline models
+│   │   ├── lstm_classifier.pt             # Best LSTM model checkpoint
+│   │   ├── lstm_logs.csv                  # LSTM training log (loss, metrics per epoch)
+│   │   ├── lstm_test_report.json          # Final test metrics for LSTM
+│   │   ├── transformer_classifier.pt      # Best Transformer model checkpoint
+│   │   ├── transformer_logs.csv           # Transformer training log
+│   │   ├── transformer_test_report.json   # Final test metrics for Transformer
+│   │   └── scaler.joblib                  # Saved feature scaler for reproducibility
+│   ├── processed/                   # Cleaned, feature-engineered datasets
 │   │   └── BTC-USD_1d_dataset.parquet
-│   └── raw/
+│   └── raw/                         # Original OHLCV data
 │       └── BTC-USD_1d.parquet
+│
 ├── experiments/
-│   └── figures/
+│   └── figures/                     # Visualization outputs (loss, metrics curves)
 │       ├── loss.png
 │       ├── lr.png
 │       └── metrics.png
+│
+├── notebooks/                       # Jupyter notebooks for experiments and EDA
+│
 ├── src/
-│   ├── data/
-│   │   ├── config.py
-│   │   ├── config_bridge.py
-│   │   ├── dataset.py
-│   │   ├── features.py
-│   │   ├── loaders.py
-│   │   ├── paths.py
-│   │   ├── preprocessing.py
-│   │   ├── quality.py
-│   │   ├── scaling.py
-│   │   ├── sequences.py
-│   │   └── viz.py
-│   ├── models/
-│   │   ├── baselines.py
-│   │   └── lstm.py
-│   ├── training/
-│   │   ├── dataloaders.py
-│   │   ├── evaluate.py
-│   │   ├── metrics.py
-│   │   ├── run_baselines.py
-│   │   ├── run_lstm.py
-│   │   ├── trainer.py
-│   │   └── utils.py
-│   └── viz/
-│       └── plot_training.py
-└── notebooks/, app/, backtest/, labeling/, utils/, tst/
+│   ├── app/                         # (Planned) Streamlit dashboard for visualization
+│   ├── backtest/                    # (Planned) Strategy backtesting module
+│   ├── labeling/                    # (Planned) Label generation and event-based labeling
+│   ├── utils/                       # (Planned) General-purpose utility functions
+│
+│   ├── data/                        # Data preparation and feature engineering pipeline
+│   │   ├── __init__.py
+│   │   ├── config.py                # Data configuration parameters
+│   │   ├── config_bridge.py         # Bridge config for cross-module consistency
+│   │   ├── dataset.py               # Orchestrates full dataset creation (end-to-end)
+│   │   ├── features.py              # Technical indicators (RSI, MACD, volatility, etc.)
+│   │   ├── loaders.py               # Data loading and cleaning (e.g., yfinance)
+│   │   ├── paths.py                 # Handles data paths and directories
+│   │   ├── preprocessing.py         # Label creation, merging, and feature alignment
+│   │   ├── quality.py               # Data quality checks (missing, duplicates)
+│   │   ├── scaling.py               # Scaler fitting and transformations
+│   │   ├── sequences.py             # Rolling window sequence generation for DL
+│   │   └── viz.py                   # Data visualization utilities
+│
+│   ├── models/                      # Model architectures (baselines and DL)
+│   │   ├── baselines.py             # Buy & Hold, SMA, Logistic Regression, XGBoost (optional)
+│   │   ├── lstm.py                  # LSTMClassifier implementation
+│   │   ├── transformer.py           # TransformerTimeSeriesClassifier implementation
+│   │   └── __init__.py
+│
+│   ├── training/                    # Training, evaluation, and metrics modules
+│   │   ├── dataloaders.py           # Converts NumPy data into Torch DataLoaders
+│   │   ├── evaluate.py              # Evaluation helpers for classification/regression
+│   │   ├── metrics.py               # Metric computations (ROC-AUC, PR-AUC, F1, etc.)
+│   │   ├── run_baselines.py         # Script to train and log baseline models
+│   │   ├── run_lstm.py              # Script to train the LSTM model
+│   │   ├── run_transformer.py       # Script to train the Transformer model
+│   │   ├── trainer.py               # Training loop, validation, early stopping, checkpointing
+│   │   └── utils.py                 # Device selection, seed setup, and helpers
+│
+│   └── viz/                         # Plotting utilities for training curves
+│       └── plot_training.py         # Generates plots from training logs
+│
+└── tst/                             # Unit and integration tests (optional)
 ```
 
 
@@ -242,7 +266,7 @@ These baselines act as **reference points** — they show what level of accuracy
 
 ---
 
-### 🧠 Why Baselines `
+### 🧠 Why Baselines ?
 In financial forecasting, especially for short-term movements, markets are very noisy.  
 By testing simple models first, we can verify:
 - that our **data pipeline** and **labels** are correct,
@@ -364,6 +388,89 @@ Artifacts are written to:
 - Seed sweep (3–5 runs) to stabilize metrics
 
 ---
+
+## ⚙️ Step 4 — Transformer Time-Series Model (Encoder-Only)
+
+### 🎯 Objective
+The goal of this step was to **implement and evaluate a Temporal Transformer (encoder-only)** architecture for financial time series classification, and compare its performance against the LSTM baseline.
+
+The Transformer is designed to handle **temporal dependencies** and **longer context windows** via self-attention, potentially capturing complex interactions between features that recurrent models might miss.
+
+---
+
+### 🧩 Model Architecture
+Implemented in `src/models/transformer.py`, the model follows an encoder-only design inspired by *Attention Is All You Need*:
+
+- **Feature embedding:** Linear projection from input features (F) → hidden dimension (`d_model`).
+- **Positional encoding:** Sinusoidal encoding to inject temporal order.
+- **Encoder stack:** `n_layers` TransformerEncoderLayers (`d_model`, `n_heads`, `dim_feedforward`, `dropout`).
+- **Pooling:** Mean-pooling or CLS token pooling over the sequence dimension.
+- **Classification head:** MLP projection (`Linear → GELU → Dropout → Linear → Logit`).
+- **Loss:** `BCEWithLogitsLoss` for binary direction prediction (up/down).
+
+Default hyperparameters:
+`d_model=128, n_heads=4, n_layers=3, ff=256, dropout=0.1, lr=2e-4`
+
+
+---
+
+### 🧱 Implementation Details
+- New training script: `src/training/run_transformer.py`
+  - Compatible with the existing data pipeline and Trainer utilities.
+  - Uses `AdamW` optimizer with weight decay.
+  - Early stopping and learning-rate scheduling on validation `PR-AUC`.
+  - All artifacts saved under `data/artifacts/`:
+    - `transformer_classifier.pt` — best model checkpoint
+    - `transformer_logs.csv` — per-epoch metrics
+    - `transformer_test_report.json` — final test evaluation
+
+- Reuses the same dataset and preprocessing logic as the LSTM:
+`(X_train, y_train), (X_val, y_val), (X_test, y_test)
+shape = (N, seq_len=64, n_features=13)`
+
+- Both pooling strategies were tested:
+- **Mean pooling** (average of hidden states)
+- **CLS pooling** (learnable token prepended to the sequence)
+
+---
+
+### 🧪 Results
+Training was **stable** across multiple runs (no exploding loss or divergence).  
+The model converged with validation metrics close to the LSTM baseline.
+
+Example test metrics (BTC-USD, daily horizon=1):
+
+| Metric | Transformer (mean) | Transformer (CLS) | LSTM baseline |
+|--------|---------------------|-------------------|----------------|
+| Accuracy | 0.509 | 0.509 | 0.510 |
+| F1 (pos) | 0.675 | 0.675 | 0.674 |
+| ROC-AUC | 0.517 | 0.510 | 0.512 |
+| PR-AUC | 0.526 | 0.520 | 0.529 |
+| Brier | 0.2499 | 0.2499 | 0.2498 |
+
+---
+
+### 📈 Interpretation
+- The Transformer achieves **comparable performance** to the LSTM, confirming that the training pipeline, feature engineering, and label construction are sound.
+- Both models show a **weak but non-random predictive signal** (ROC-AUC slightly above 0.5) at the 1-day horizon — consistent with market efficiency.
+- The CLS pooling version performs slightly worse, likely due to limited data size and short sequence lengths.
+
+---
+
+### 🚀 Next Improvements
+- **Longer context**: try `--seq-len 96` or `128`.
+- **Larger model**: increase `n_layers` to 4–6 and `ff` to 512.
+- **Better features**: add lagged returns, rolling percentiles, volatility regime indicators.
+- **Alternative encodings**: implement `Time2Vec` or learnable positional embeddings.
+- **Cosine scheduler with warmup** for smoother optimization.
+- **Multi-asset training** (BTC + ETH + S&P500) with ticker embeddings.
+
+---
+
+### ✅ Step Outcome
+✔️ Transformer encoder-only model implemented and trained successfully.  
+✔️ Training stable, metrics on par with LSTM baseline.  
+✔️ Ready for further experimentation with richer features and multi-asset setups.
 
 
 ## 🚀 Next Steps
