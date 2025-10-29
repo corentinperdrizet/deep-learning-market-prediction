@@ -64,6 +64,7 @@ deep-learning-market-prediction/
 │       ├── loss.png
 │       ├── lr.png
 │       └── metrics.png
+│   └── ablation.md
 │
 ├── notebooks/                       # Jupyter notebooks for experiments and EDA
 │
@@ -94,6 +95,8 @@ deep-learning-market-prediction/
 │   │   └── __init__.py
 │
 │   ├── training/                    # Training, evaluation, and metrics modules
+│   │   ├── calibration.py           # Platt & Isotonic calibration
+│   │   ├── thresholds.py            # Threshold optimization (F1/Sharpe)
 │   │   ├── dataloaders.py           # Converts NumPy data into Torch DataLoaders
 │   │   ├── evaluate.py              # Evaluation helpers for classification/regression
 │   │   ├── metrics.py               # Metric computations (ROC-AUC, PR-AUC, F1, etc.)
@@ -471,6 +474,110 @@ Example test metrics (BTC-USD, daily horizon=1):
 ✔️ Transformer encoder-only model implemented and trained successfully.  
 ✔️ Training stable, metrics on par with LSTM baseline.  
 ✔️ Ready for further experimentation with richer features and multi-asset setups.
+
+---
+
+# ⚙️ Step 5 — Calibration, Thresholds, and Ablation
+
+## 🎯 Objective
+This step focuses on transforming raw predictive scores into **actionable trading signals**.  
+Even if a model has a decent ROC-AUC or PR-AUC, its probabilities might not correspond to real-world likelihoods, and its decision threshold (default 0.5) might not be optimal.  
+The calibration and thresholding phase ensures that the model's outputs can be reliably interpreted and used in a backtesting environment.
+
+---
+
+## 🧩 Implemented Modules
+
+### 1️⃣ Calibration
+
+Two calibration methods were implemented in `src/training/calibration.py`:
+
+- **Platt Scaling** — a parametric sigmoid-based calibration that maps raw probabilities to better-calibrated outputs.  
+- **Isotonic Regression** — a non-parametric, monotonic calibration model that can adapt to arbitrary probability distortions.
+
+Each method provides:
+- `fit(y_val, p_val)` — learns the calibration mapping on validation data.  
+- `transform(p)` — applies the learned mapping to new probabilities.  
+- `save(path)` / `load(path)` — persist the calibrator for later reuse.
+
+Additionally, the module includes:
+- `expected_calibration_error()` and `calibration_report()` — compute ECE, MCE, and Brier Score.  
+- `plot_reliability_diagram()` — plots calibration curves (empirical accuracy vs. confidence).
+
+This allows us to visualize how well a model's probabilities align with true event frequencies.
+
+---
+
+### 2️⃣ Threshold Optimization
+
+The module `src/training/thresholds.py` introduces a **systematic search** for the optimal decision threshold θ.  
+Rather than defaulting to θ=0.5, this step finds the value that maximizes a given objective on the validation set:
+
+- **F1** — for pure classification tasks (maximizing accuracy and recall balance).  
+- **Sharpe Ratio** — when next-step returns are available, to directly optimize the risk-adjusted profitability of the signal.
+
+Main components:
+- `grid_search_threshold()` — evaluates metrics (Accuracy, F1, Precision, Recall, ROC-AUC, PR-AUC, Sharpe) across thresholds.  
+- `plot_metric_vs_threshold()` — visualizes how performance changes with θ.  
+- `ThresholdSearchResult` — dataclass storing the best θ, best value, and the full metrics table.
+
+---
+
+### 3️⃣ Ablation Protocol
+
+A dedicated file `experiments/ablation.md` was added to standardize controlled experiments and feature-importance studies.  
+It defines how to test the impact of:
+- removing or modifying specific features (e.g., RSI, MACD),
+- changing sequence length (32, 64, 96),
+- altering prediction horizon (1, 3, 7 days),
+- using different scalers (Standard vs. Robust).
+
+Each experiment reports:
+- Validation metrics (ROC-AUC, PR-AUC, F1@θ)
+- Test metrics (ROC-AUC, PR-AUC, F1@θ, Sharpe@θ)
+- Notes on stability, convergence, and runtime.
+
+---
+
+## 🧪 Usage Example
+
+Calibration and thresholding are applied **after** model training, using validation outputs:
+
+```python
+from src.training.calibration import PlattCalibrator, calibration_report, plot_reliability_diagram
+from src.training.thresholds import grid_search_threshold, plot_metric_vs_threshold
+
+# 1. Fit calibrator on validation
+cal = PlattCalibrator().fit(y_val, p_val)
+p_val_cal = cal.transform(p_val)
+
+# 2. Evaluate calibration
+print(calibration_report(y_val, p_val))
+plot_reliability_diagram(y_val, p_val_cal)
+
+# 3. Optimize threshold (e.g., for Sharpe)
+res = grid_search_threshold(y_val, p_val_cal, objective="sharpe", returns_next=returns_val)
+print("Best θ:", res.best_threshold)
+plot_metric_vs_threshold(res.table, metric="sharpe")
+```
+
+Once calibration and optimal θ are determined on validation, they are **frozen** and reused on the test set without retraining.
+
+---
+
+## ✅ Step Outcome
+✔️ Implemented Platt and Isotonic calibration modules.  
+✔️ Added threshold optimization with F1 and Sharpe objectives.  
+✔️ Created standardized ablation protocol for systematic testing.  
+✔️ Ready for integration into the backtesting and evaluation pipeline (Step 6).
+
+---
+
+## 🧠 Key Takeaway
+This step bridges the gap between *predictive accuracy* and *trading usability*.  
+A well-calibrated, threshold-optimized model provides interpretable, consistent probabilities that can be translated into real trading actions.
+
+---
 
 
 ## 🚀 Next Steps
