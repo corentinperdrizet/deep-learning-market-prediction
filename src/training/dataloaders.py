@@ -72,3 +72,23 @@ def make_loaders(
         else None
     )
     return train_loader, val_loader, test_loader
+
+def to_tensor(
+    X: np.ndarray,
+    device: Optional[torch.device] = None,
+    dtype: torch.dtype = torch.float32,
+) -> torch.Tensor:
+    """
+    Convert a NumPy array of shape (N, seq_len, n_features) to a PyTorch tensor on the chosen device.
+
+    - Keeps (N, T, F) layout expected by your LSTM/Transformer forward passes.
+    - Uses float32 by default.
+    """
+    if device is None:
+        try:
+            from .utils import get_device
+            device = get_device()
+        except Exception:
+            device = torch.device("cpu")
+    t = torch.from_numpy(X).to(dtype=dtype)
+    return t.to(device)
