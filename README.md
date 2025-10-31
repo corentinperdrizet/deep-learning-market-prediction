@@ -40,90 +40,92 @@ The project demonstrates:
 ### Current Repo Layout (excerpt)
 ```
 deep-learning-market-prediction/
-├── README.md                       # Main project documentation
-├── requirements.txt                 # Dependencies list
+├── README.md                                # Main project documentation
+├── requirements.txt                         # Dependencies list (incl. mlflow)
 │
 ├── data/
-│   ├── artifacts/                   # Trained models, logs, reports, and scalers
-│   │   ├── baselines_metrics.csv          # Metrics summary for baseline models
-│   │   ├── lstm_classifier.pt             # Best LSTM model checkpoint
-│   │   ├── lstm_logs.csv                  # LSTM training log (loss, metrics per epoch)
-│   │   ├── lstm_test_report.json          # Final test metrics for LSTM
-│   │   ├── transformer_classifier.pt      # Best Transformer model checkpoint
-│   │   ├── transformer_logs.csv           # Transformer training log
-│   │   ├── transformer_test_report.json   # Final test metrics for Transformer
-│   │   └── scaler.joblib                  # Saved feature scaler for reproducibility
-│   │   ├── thresholds.json                    # θ sauvegardé par modèle (ex: {"lstm":{"theta":0.55}})
-│   │   ├── lstm_backtest_kpis.csv             # KPIs du backtest LSTM
-│   │   └── transformer_backtest_kpis.csv      # (optionnel) KPIs du backtest Transformer si tu l’exécutes
-|   |
-│   ├── processed/                   # Cleaned, feature-engineered datasets
-│   │   └── BTC-USD_1d_dataset.parquet
-│   └── raw/                         # Original OHLCV data
-│       └── BTC-USD_1d.parquet
+│   ├── artifacts/                           # Trained models, logs, reports, scalers, run logs
+│   │   ├── baselines_metrics.csv            # Metrics summary for baseline models
+│   │   ├── lstm_classifier.pt               # Best LSTM model checkpoint
+│   │   ├── lstm_logs.csv                    # LSTM training log (loss, metrics per epoch)
+│   │   ├── lstm_test_report.json            # Final test metrics for LSTM
+│   │   ├── run_lstm_stdout.txt              # Stdout captured by MLflow wrapper
+│   │   ├── run_lstm_stderr.txt              # Stderr captured by MLflow wrapper
+│   │   ├── transformer_classifier.pt        # Best Transformer model checkpoint
+│   │   ├── transformer_logs.csv             # Transformer training log
+│   │   ├── transformer_test_report.json     # Final test metrics for Transformer
+│   │   ├── scaler.joblib                    # Saved feature scaler for reproducibility
+│   │   ├── thresholds.json                  # Saved optimal thresholds per model
+│   │   ├── lstm_backtest_kpis.csv           # KPIs from LSTM backtest
+│   │   └── transformer_backtest_kpis.csv    # KPIs from Transformer backtest (optional)
+│   ├── processed/
+│   │   └── BTC-USD_1d_dataset.parquet       # Model-ready dataset
+│   └── raw/
+│       └── BTC-USD_1d.parquet               # Original OHLCV data
 │
 ├── experiments/
-│   └── figures/                     # Visualization outputs (loss, metrics curves)
-│       ├── loss.png
-│       ├── lr.png
-│       |── metrics.png
-│       ├── lstm_equity.png                    # courbe equity stratégie vs Buy&Hold
-│       ├── lstm_drawdown.png                  # courbe de drawdown stratégie
-│   └── ablation.md
+│   ├── figures/                             # Visualization outputs
+│   │   ├── loss.png                         # Training loss curve
+│   │   ├── lr.png                           # Learning rate curve
+│   │   ├── metrics.png                      # PR-AUC / ROC-AUC / F1 curves
+│   │   ├── lstm_equity.png                  # Strategy equity vs Buy&Hold
+│   │   └── lstm_drawdown.png                # Drawdown curve
+│   └── mlruns/                              # MLflow tracking directory (local backend)
+│       ├── 0/                               # Default experiment id (example)
+│       └── 909097439222959922/              # Another experiment id (example)
 │
-├── notebooks/                       # Jupyter notebooks for experiments and EDA
-│   └── 01_baselines.ipynb              # Notebook to run and analyze baseline models
-│   └── 06_backtest_minimal.py          # notebook Jupytext/VSCode pour exécuter le backtest
+├── notebooks/
+│   ├── 01_baselines.ipynb                   # Baseline models exploration
+│   └── backtest.ipynb                       # Minimal/clean backtest notebook
 │
 ├── src/
-│   ├── app/                         # (Planned) Streamlit dashboard for visualization
-│   ├── backtest/                              # module backtest minimal et propre
-│   │   ├── __init__.py                        # peut être vide
-│   │   ├── rules.py                           # conversion proba/prédictions -> signaux de position
-│   │   ├── costs.py                           # modèle de coûts (fees + slippage) en bps
-│   │   ├── engine.py                          # application du signal (+1 barre), PnL, equity, drawdown
-│   │   ├── metrics.py                         # KPI: CAGR, Sharpe, Sortino, MaxDD, Calmar, Turnover, Hit Ratio
-│   │   └── plots.py                           # helpers Matplotlib: equity + drawdown
-|   |   
-│   ├── labeling/                    # (Planned) Label generation and event-based labeling
-│   ├── utils/                       # (Planned) General-purpose utility functions
-│
-│   ├── data/                        # Data preparation and feature engineering pipeline
+│   ├── app/                                 # (Planned) Streamlit dashboard
+│   ├── backtest/                            # Minimal & clean backtest module
 │   │   ├── __init__.py
-│   │   ├── config.py                # Data configuration parameters
-│   │   ├── config_bridge.py         # Bridge config for cross-module consistency
-│   │   ├── dataset.py               # Orchestrates full dataset creation (end-to-end)
-│   │   ├── features.py              # Technical indicators (RSI, MACD, volatility, etc.)
-│   │   ├── loaders.py               # Data loading and cleaning (e.g., yfinance)
-│   │   ├── paths.py                 # Handles data paths and directories
-│   │   ├── preprocessing.py         # Label creation, merging, and feature alignment
-│   │   ├── quality.py               # Data quality checks (missing, duplicates)
-│   │   ├── scaling.py               # Scaler fitting and transformations
-│   │   ├── sequences.py             # Rolling window sequence generation for DL
-│   │   └── viz.py                   # Data visualization utilities
+│   │   ├── costs.py                         # Fees & slippage model (bps)
+│   │   ├── engine.py                        # Signal application (+1 bar), PnL, equity, DD
+│   │   ├── metrics.py                       # CAGR, Sharpe, Sortino, MaxDD, Calmar, Turnover, Hit Ratio
+│   │   └── plots.py                         # Matplotlib helpers (equity, drawdown)
+│   ├── data/                                # Data preparation & feature engineering
+│   │   ├── __init__.py
+│   │   ├── config.py                        # Data configuration parameters
+│   │   ├── config_bridge.py                 # Cross-module config consistency
+│   │   ├── dataset.py                       # Orchestrates full dataset creation (end-to-end)
+│   │   ├── features.py                      # Technical indicators (RSI, MACD, volatility, etc.)
+│   │   ├── loaders.py                       # Data loading and cleaning (e.g., yfinance)
+│   │   ├── paths.py                         # Path helpers
+│   │   ├── preprocessing.py                 # Label creation, merging, alignment
+│   │   ├── quality.py                       # Data quality checks
+│   │   ├── scaling.py                       # Scaler fitting and transforms
+│   │   ├── sequences.py                     # Rolling window sequence generation
+│   │   └── viz.py                           # Data visualization utilities
+│   ├── labeling/                            # (Planned) Event-based labeling
+│   ├── models/                              # Baselines & DL architectures
+│   │   ├── __init__.py
+│   │   ├── baselines.py                     # Buy&Hold, SMA, Logistic Regression, XGBoost (optional)
+│   │   ├── lstm.py                          # LSTMClassifier
+│   │   └── transformer.py                   # TransformerTimeSeriesClassifier
+│   ├── track/                               # MLflow tracking utilities
+│   │   ├── __init__.py
+│   │   └── mlflow_utils.py                  # MLflowTracker (params/metrics/artifacts)
+│   ├── training/                            # Training, evaluation, and metrics
+│   │   ├── calibration.py                   # Platt & Isotonic calibration
+│   │   ├── dataloaders.py                   # NumPy → Torch DataLoaders
+│   │   ├── evaluate.py                      # Eval helpers (classification/regression)
+│   │   ├── metrics.py                       # ROC-AUC, PR-AUC, F1, Brier, etc.
+│   │   ├── run_baselines.py                 # Train & log baselines
+│   │   ├── run_lstm.py                      # Train LSTM (CLI)
+│   │   ├── run_lstm_mlflow.py               # MLflow-tracked wrapper (subprocess)
+│   │   ├── run_transformer.py               # Train Transformer (CLI)
+│   │   ├── run_transformer_mlflow.py        # MLflow-tracked wrapper (subprocess)
+│   │   ├── thresholds.py                    # Threshold optimization (F1/Sharpe)
+│   │   ├── trainer.py                       # Train/validate loops, early stopping, checkpoints
+│   │   └── utils.py                         # Seed, device selection, FS helpers
+│   ├── utils/                               # (Planned) General-purpose utilities
+│   └── viz/
+│       └── plot_training.py                 # Generate training plots from logs
 │
-│   ├── models/                      # Model architectures (baselines and DL)
-│   │   ├── baselines.py             # Buy & Hold, SMA, Logistic Regression, XGBoost (optional)
-│   │   ├── lstm.py                  # LSTMClassifier implementation
-│   │   ├── transformer.py           # TransformerTimeSeriesClassifier implementation
-│   │   └── __init__.py
-│
-│   ├── training/                    # Training, evaluation, and metrics modules
-│   │   ├── calibration.py           # Platt & Isotonic calibration
-│   │   ├── thresholds.py            # Threshold optimization (F1/Sharpe)
-│   │   ├── dataloaders.py           # Converts NumPy data into Torch DataLoaders
-│   │   ├── evaluate.py              # Evaluation helpers for classification/regression
-│   │   ├── metrics.py               # Metric computations (ROC-AUC, PR-AUC, F1, etc.)
-│   │   ├── run_baselines.py         # Script to train and log baseline models
-│   │   ├── run_lstm.py              # Script to train the LSTM model
-│   │   ├── run_transformer.py       # Script to train the Transformer model
-│   │   ├── trainer.py               # Training loop, validation, early stopping, checkpointing
-│   │   └── utils.py                 # Device selection, seed setup, and helpers
-│
-│   └── viz/                         # Plotting utilities for training curves
-│       └── plot_training.py         # Generates plots from training logs
-│
-└── tst/                             # Unit and integration tests (optional)
+└── tst/                                     # Unit and integration tests (optional)
 ```
 
 
@@ -717,6 +719,146 @@ Typical output:
 - Modular design (rules / engine / metrics / plots) keeps experiments fully reusable.
 
 ---
+
+# ⚙️ Step 7 — Experiment Tracking and Artifacts Management
+
+## 🎯 Objective
+This step aims to make all experiments **fully reproducible and traceable** by integrating a lightweight **MLflow tracking system**.  
+Every training run (LSTM, Transformer, etc.) automatically logs its parameters, metrics, and artifacts — turning each experiment into a reusable record that can be compared, reproduced, and included in a portfolio or CV.
+
+---
+
+## 🧩 What We Implemented
+
+### 1️⃣ MLflow Integration
+A dedicated tracking module was added under `src/track/mlflow_utils.py` to manage MLflow sessions safely.  
+It provides utilities to:
+- Create or resume experiments (`MLflowTracker` context manager)
+- Log parameters, tags, metrics, and artifacts (models, logs, reports, figures)
+- Auto-skip missing files (so runs never crash when a file doesn’t exist)
+- Work in both local and remote setups (default: local filesystem)
+
+This ensures that **every training run produces a complete experiment record** that can later be visualized in MLflow UI or used in reports.
+
+---
+
+### 2️⃣ Tracked Runner Scripts
+Two new wrappers were added:
+
+| Script | Purpose | Launches |
+|---------|----------|-----------|
+| `src/training/run_lstm_mlflow.py` | Wraps the LSTM training process | `python -m src.training.run_lstm` |
+| `src/training/run_transformer_mlflow.py` | Wraps the Transformer training process | `python -m src.training.run_transformer` |
+
+Each wrapper:
+1. Parses all experiment parameters (data, model, training).
+2. Sets a deterministic seed and selects device (CUDA → MPS → CPU).
+3. Prepares the dataset to ensure data consistency before training.
+4. Runs the training script as a subprocess (no code duplication).
+5. Logs:
+   - Data configuration
+   - Model hyperparameters
+   - Training metrics (loss, PR-AUC, ROC-AUC, etc.)
+   - Test metrics and JSON report
+   - Artifacts: model checkpoint, scaler, logs, and plots
+
+---
+
+### 3️⃣ Artifacts Logged per Run
+
+Each run stores its results in two places:
+
+| Location | Content |
+|-----------|----------|
+| `data/artifacts/` | Model checkpoint, scaler, logs, test reports |
+| `experiments/mlruns/` | MLflow experiment folder (metadata, metrics, parameters, artifacts) |
+
+Additionally, all generated plots from `experiments/figures/` (loss, metrics, learning rate, equity curves) are automatically uploaded as MLflow artifacts for visual comparison between runs.
+
+Example structure:
+```
+experiments/
+├── figures/
+│ ├── loss.png
+│ ├── metrics.png
+│ ├── lr.png
+│ ├── lstm_equity.png
+│ └── lstm_drawdown.png
+│
+└── mlruns/
+├── 0/
+│ ├── <run_id>/
+│ │ ├── artifacts/
+│ │ ├── metrics/
+│ │ ├── params/
+│ │ └── meta.yaml
+```
+
+
+---
+
+### 4️⃣ Example Run (LSTM)
+
+Command used:
+```
+python -m src.training.run_lstm_mlflow
+--ticker BTC-USD
+--interval 1d
+--start 2017-01-01
+--test-start 2023-01-01
+--horizon 1
+--seq-len 64
+--hidden 128
+--layers 2
+--dropout 0.2
+--batch 256
+--epochs 30
+--lr 1e-3
+--run-name "lstm_btc_1d_h1_seq64"
+```
+
+
+**Outcome:**
+- The dataset was prepared successfully (`train=1561, val=117, test=968`)
+- Early stopping triggered at epoch 8
+- Best validation `PR-AUC=0.4872` at epoch 3
+- Test performance: `PR-AUC=0.5478`, `ROC-AUC=0.5159`
+- Artifacts saved to `data/artifacts/`
+- MLflow run completed successfully with all logs and plots attached
+
+---
+
+### 5️⃣ Visualization and Comparison
+To open the MLflow dashboard and compare all runs:
+`mlflow ui --backend-store-uri file:experiments/mlruns --port 5000`
+
+
+Then open **http://localhost:5000** to view:
+- Hyperparameters for each run
+- Validation/test metrics over time
+- Downloadable artifacts (checkpoints, scalers, logs)
+- Comparison tables across LSTM and Transformer runs
+
+---
+
+### 🧠 Why This Matters
+This step brings **scientific rigor and reproducibility** to the project.  
+Instead of isolated notebook runs, each experiment becomes:
+- Traceable: parameters and results are logged
+- Reproducible: anyone can re-run a configuration exactly
+- Comparable: metrics and artifacts are centralized in MLflow
+
+It also makes the project **“CV-ready”**, since every model training can be demonstrated as a documented experiment with complete lineage — from data configuration to test metrics and performance visualization.
+
+---
+
+### ✅ Step Outcome
+✔️ MLflow tracking fully integrated  
+✔️ Automatic experiment logging for LSTM and Transformer models  
+✔️ Artifacts and metrics consistently saved in a structured format  
+✔️ Reproducible, auditable experiments ready for backtesting and dashboard integration
+
+
 
 ## 🚀 Next Steps
 - [ ] Implement **LSTM and Transformer** architectures (`src/models/`)
