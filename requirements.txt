@@ -6,3 +6,4 @@ matplotlib
 joblib
 pyarrow
 torch
+mlflow

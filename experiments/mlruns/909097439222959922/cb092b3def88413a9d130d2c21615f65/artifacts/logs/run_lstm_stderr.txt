@@ -1,0 +1,11 @@
+usage: run_lstm.py [-h] [--ticker TICKER] [--interval INTERVAL]
+                   [--start START] [--end END] [--val-start VAL_START]
+                   [--test-start TEST_START] [--label-type {direction,return}]
+                   [--horizon HORIZON] [--robust-scaler] [--no-cache-raw]
+                   [--no-cache-processed] [--seq-len SEQ_LEN]
+                   [--hidden HIDDEN] [--layers LAYERS] [--dropout DROPOUT]
+                   [--bidirectional] [--batch BATCH] [--epochs EPOCHS]
+                   [--lr LR] [--weight-decay WEIGHT_DECAY]
+                   [--patience PATIENCE] [--monitor {pr_auc,roc_auc,f1}]
+                   [--pos-weight POS_WEIGHT] [--grad-clip GRAD_CLIP]
+run_lstm.py: error: unrecognized arguments: --seed 1337

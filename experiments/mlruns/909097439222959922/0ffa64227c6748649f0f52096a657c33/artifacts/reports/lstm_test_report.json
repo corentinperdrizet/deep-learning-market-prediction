@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "ticker": "BTC-USD",
+    "interval": "1d",
+    "label_type": "direction",
+    "horizon": 1,
+    "seq_len": 64
+  },
+  "features": [
+    "log_ret",
+    "vol_20",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "ret_1",
+    "ret_3",
+    "ret_7",
+    "ret_14",
+    "dow",
+    "dow_sin",
+    "dow_cos"
+  ],
+  "seq_len": 64,
+  "test_pr_auc": 0.5478365910822603,
+  "test_roc_auc": 0.5158513931888545,
+  "train_summary": {
+    "best_epoch": 3,
+    "best_score": 0.48719972618059115,
+    "monitor": "pr_auc"
+  }
+}

@@ -1,0 +1,2 @@
+/Users/corentinperdrizet/Documents/Finance/deep-learning-market-prediction/env/lib/python3.13/site-packages/pandas/io/parquet.py:191: UserWarning: The DataFrame has column names of mixed type. They will be converted to strings and not roundtrip correctly.
+  table = self.api.Table.from_pandas(df, **from_pandas_kwargs)

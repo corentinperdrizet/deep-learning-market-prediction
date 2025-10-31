@@ -53,8 +53,10 @@ def parse_args():
     p.add_argument("--monitor", type=str, default="pr_auc", choices=["pr_auc", "roc_auc", "f1"])
     p.add_argument("--pos-weight", type=float, default=None)
     p.add_argument("--grad-clip", type=float, default=1.0)
+    p.add_argument("--seed", type=int, default=1337)
 
     return p.parse_args()
+
 
 
 def main():

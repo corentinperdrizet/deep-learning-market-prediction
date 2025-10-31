@@ -1,0 +1,23 @@
+[Quality] Missing per col:
+ Price      Ticker 
+Adj Close  BTC-USD    0
+Close      BTC-USD    0
+High       BTC-USD    0
+Low        BTC-USD    0
+Open       BTC-USD    0
+Volume     BTC-USD    0
+dtype: int64
+[Quality] Duplicate timestamps: 0
+Dataset → seq_len=64, n_features=13, train=1561, val=117, test=968
+[Epoch 01] train_loss=0.6950 val_loss=0.6976 PR-AUC=0.4525 ROC-AUC=0.4272 F1=0.6235 lr=0.001000
+[Epoch 02] train_loss=0.6911 val_loss=0.6974 PR-AUC=0.4793 ROC-AUC=0.4522 F1=0.6235 lr=0.001000
+[Epoch 03] train_loss=0.6887 val_loss=0.6962 PR-AUC=0.4872 ROC-AUC=0.4941 F1=0.6235 lr=0.001000
+[Epoch 04] train_loss=0.6886 val_loss=0.6975 PR-AUC=0.4709 ROC-AUC=0.4558 F1=0.6235 lr=0.001000
+[Epoch 05] train_loss=0.6884 val_loss=0.6982 PR-AUC=0.4809 ROC-AUC=0.4620 F1=0.6235 lr=0.001000
+[Epoch 06] train_loss=0.6885 val_loss=0.6983 PR-AUC=0.4566 ROC-AUC=0.4222 F1=0.6235 lr=0.000500
+[Epoch 07] train_loss=0.6876 val_loss=0.6985 PR-AUC=0.4801 ROC-AUC=0.4284 F1=0.6235 lr=0.000500
+[Epoch 08] train_loss=0.6863 val_loss=0.6989 PR-AUC=0.4730 ROC-AUC=0.4434 F1=0.6235 lr=0.000500
+Early stopping at epoch 8 (best pr_auc=0.4872 at epoch 3)
+Train summary: {'best_epoch': 3, 'best_score': 0.48719972618059115, 'monitor': 'pr_auc'}
+[TEST] PR-AUC=0.5478  ROC-AUC=0.5159
+Saved report → data/artifacts/lstm_test_report.json

@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/corentinperdrizet/Documents/Finance/deep-learning-market-prediction/experiments/mlruns/909097439222959922/0ffa64227c6748649f0f52096a657c33/artifacts
+end_time: 1761905476799
+entry_point_name: ''
+experiment_id: '909097439222959922'
+lifecycle_stage: active
+run_id: 0ffa64227c6748649f0f52096a657c33
+run_name: lstm_btc_1d_h1_seq64
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761905472577
+status: 3
+tags: []
+user_id: corentinperdrizet
