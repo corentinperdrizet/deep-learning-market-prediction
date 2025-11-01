@@ -7,3 +7,6 @@ joblib
 pyarrow
 torch
 mlflow
+streamlit
+matplotlib
+pyarrow
