@@ -79,7 +79,9 @@ deep-learning-market-prediction/
 │   └── backtest.ipynb                       # Minimal/clean backtest notebook
 │
 ├── src/
-│   ├── app/                                 # (Planned) Streamlit dashboard
+│   ├── app/                                 # Streamlit dashboard
+│   │   ├── utils.py                         # Handle correct loads
+│   │   ├── stramlit_app.py                  # Streamlit dashboard 
 │   ├── backtest/                            # Minimal & clean backtest module
 │   │   ├── __init__.py
 │   │   ├── costs.py                         # Fees & slippage model (bps)
