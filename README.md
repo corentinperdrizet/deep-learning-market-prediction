@@ -1,5 +1,7 @@
 # Deep Learning Market Prediction
 
+TODO : summerize all parts
+
 ## 🧭 Project Overview
 This project aims to **predict financial market movements** using **deep learning models** such as LSTM, GRU, and Temporal Transformers.  
 The goal is to forecast the **direction or return** of an asset (e.g., BTC/USD, ETH/USD, S&P500) over short time horizons and evaluate the resulting strategies through backtesting.
