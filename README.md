@@ -1,6 +1,16 @@
 # Deep Learning Market Prediction
 
-TODO : summerize all parts
+## How to run 
+
+### 1. Install
+pip install -r requirements.txt
+### 2. Prepare dataset
+python -m src.data.dataset
+### 3. Train a model
+python -m src.training.run_lstm
+### 4. Visualize results
+streamlit run src/app/streamlit_app.py
+
 
 ## 🧭 Project Overview
 This project aims to **predict financial market movements** using **deep learning models** such as LSTM, GRU, and Temporal Transformers.  
