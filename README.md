@@ -2,14 +2,23 @@
 
 ## How to run 
 
-### 1. Install
-pip install -r requirements.txt
-### 2. Prepare dataset
-python -m src.data.dataset
-### 3. Train a model
-python -m src.training.run_lstm
-### 4. Visualize results
-streamlit run src/app/streamlit_app.py
+### Quickstart (Makefile)
+- Install deps: `make install`
+- Prepare dataset: `make data`
+- Train (LSTM defaults): `make run`
+- Visualize training plots: `make vizu`
+- Launch dashboard: `make app`
+
+Optional:
+- Baselines: `make baselines`
+- Transformer: `make transformer`
+- MLflow UI: `make mlflow-ui`
+
+### Manual commands
+1. Install: `pip install -r requirements.txt`
+2. Prepare dataset: `python -m src.data.dataset`
+3. Train a model: `python -m src.training.run_lstm`
+4. Visualize results: `streamlit run src/app/streamlit_app.py`
 
 
 ## 🧭 Project Overview
