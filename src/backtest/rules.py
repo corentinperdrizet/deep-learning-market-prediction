@@ -1,7 +1,9 @@
 # src/backtest/rules.py
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+
 
 def _to_series(x, index=None, name=None) -> pd.Series:
     """
@@ -15,6 +17,7 @@ def _to_series(x, index=None, name=None) -> pd.Series:
         return s
     x = np.asarray(x)
     return pd.Series(x, index=index, name=name)
+
 
 def signal_from_proba(
     p_up,
@@ -45,6 +48,7 @@ def signal_from_proba(
         sig[p < (1.0 - theta)] = -1.0
     sig.name = name
     return sig
+
 
 # def signal_from_proba(p_up: pd.Series, theta: float, long_short: bool = False) -> pd.Series:
 #     """

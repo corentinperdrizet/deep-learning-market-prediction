@@ -4,13 +4,13 @@
 
 import os
 import random
-from typing import Dict, Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
 
-
 # --------------------------- Reproducibility ---------------------------
+
 
 def set_seed(seed: int = 42) -> None:
     """
@@ -34,6 +34,7 @@ def set_global_seed(seed: int = 42) -> None:
 
 
 # --------------------------- Device selection ---------------------------
+
 
 def get_device() -> torch.device:
     """
@@ -81,6 +82,7 @@ def available_device_name() -> str:
 
 # --------------------------- Filesystem helpers ---------------------------
 
+
 def ensure_dir(path: str) -> None:
     """
     Create a directory (and parents) if it does not exist.
@@ -91,7 +93,8 @@ def ensure_dir(path: str) -> None:
 
 # --------------------------- Checkpointing ---------------------------
 
-def save_checkpoint(state: Dict[str, Any], path: str) -> None:
+
+def save_checkpoint(state: dict[str, Any], path: str) -> None:
     """
     Save a training checkpoint safely. Ensures parent directory exists.
     """
@@ -101,6 +104,7 @@ def save_checkpoint(state: Dict[str, Any], path: str) -> None:
 
 # --------------------------- Model utilities (optional) ---------------------------
 
+
 def count_parameters(model) -> int:
     """
     Count the number of trainable parameters in a PyTorch model.
@@ -108,7 +112,7 @@ def count_parameters(model) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def move_to_device(obj: Any, device: Optional[torch.device] = None) -> Any:
+def move_to_device(obj: Any, device: torch.device | None = None) -> Any:
     """
     Recursively move tensors (or dict/list/tuple containers of tensors) to a device.
     """

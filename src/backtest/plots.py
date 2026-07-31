@@ -1,7 +1,9 @@
 # src/backtest/plots.py
 from __future__ import annotations
+
 import matplotlib.pyplot as plt
 import pandas as pd
+
 
 def plot_equity(
     df: pd.DataFrame,
@@ -21,6 +23,7 @@ def plot_equity(
     plt.xlabel("Date")
     plt.ylabel("Equity (×)")
     plt.tight_layout()
+
 
 def plot_drawdown(
     df: pd.DataFrame,

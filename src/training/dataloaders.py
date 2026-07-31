@@ -1,8 +1,9 @@
 # src/training/dataloaders.py
-from typing import Tuple, Optional
+
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader, TensorDataset
+
 from .utils import get_device
 
 
@@ -24,12 +25,12 @@ def make_loaders(
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
-    X_test: Optional[np.ndarray] = None,
-    y_test: Optional[np.ndarray] = None,
+    X_test: np.ndarray | None = None,
+    y_test: np.ndarray | None = None,
     batch_size: int = 256,
     num_workers: int = 0,
     pin_memory: bool = True,
-) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
+) -> tuple[DataLoader, DataLoader, DataLoader | None]:
     """
     Returns train_loader, val_loader, test_loader (test may be None).
     We DON'T shuffle sequences order globally; batching is fine.
@@ -46,7 +47,7 @@ def make_loaders(
     train_loader = DataLoader(
         train_set,
         batch_size=batch_size,
-        shuffle=True,           # ok: mélange les séquences entre elles, pas l'ordre intra-séquence
+        shuffle=True,  # ok: mélange les séquences entre elles, pas l'ordre intra-séquence
         drop_last=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
@@ -73,9 +74,10 @@ def make_loaders(
     )
     return train_loader, val_loader, test_loader
 
+
 def to_tensor(
     X: np.ndarray,
-    device: Optional[torch.device] = None,
+    device: torch.device | None = None,
     dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     """
@@ -87,6 +89,7 @@ def to_tensor(
     if device is None:
         try:
             from .utils import get_device
+
             device = get_device()
         except Exception:
             device = torch.device("cpu")

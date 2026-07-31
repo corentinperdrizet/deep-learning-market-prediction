@@ -7,3 +7,8 @@ experiments/mlruns/
 *.joblib
 __pycache__/
 env/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/

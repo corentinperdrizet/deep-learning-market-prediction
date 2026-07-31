@@ -1,18 +1,20 @@
 # src/models/baselines.py
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 
 # Sklearn baselines
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
 
 try:
     from xgboost import XGBClassifier  # optional
+
     _HAS_XGB = True
 except Exception:
     _HAS_XGB = False
@@ -58,9 +60,9 @@ class BuyAndHoldClassifier:
     This is a proper, trivial probabilistic baseline.
     """
 
-    p_hat_: Optional[float] = None
+    p_hat_: float | None = None
 
-    def fit(self, y_train: ArrayLike) -> "BuyAndHoldClassifier":
+    def fit(self, y_train: ArrayLike) -> BuyAndHoldClassifier:
         y = np.asarray(y_train).astype(float)
         # Numerical stability for edge cases
         eps = 1e-6
@@ -91,7 +93,7 @@ class LogisticRegressionTabular:
     C: float = 1.0
     penalty: str = "l2"
     max_iter: int = 200
-    class_weight: Optional[str | dict] = None
+    class_weight: str | dict | None = None
     random_state: int = 42
 
     def _make_pipeline(self) -> Pipeline:
@@ -103,12 +105,14 @@ class LogisticRegressionTabular:
             solver="lbfgs",
             random_state=self.random_state,
         )
-        return Pipeline([
-            ("scaler", StandardScaler(with_mean=True, with_std=True)),
-            ("clf", lr),
-        ])
+        return Pipeline(
+            [
+                ("scaler", StandardScaler(with_mean=True, with_std=True)),
+                ("clf", lr),
+            ]
+        )
 
-    def fit(self, X_train: ArrayLike, y_train: ArrayLike) -> "LogisticRegressionTabular":
+    def fit(self, X_train: ArrayLike, y_train: ArrayLike) -> LogisticRegressionTabular:
         X_tab = sequences_to_tabular(X_train, pooling=self.pooling, k=self.k)
         self.pipe_ = self._make_pipeline()
         self.pipe_.fit(X_tab, y_train)
@@ -126,9 +130,9 @@ class XGBTabular:
 
     pooling: Pooling = "flatten_last_k"
     k: int = 5
-    params: Optional[Dict[str, Any]] = None
+    params: dict[str, Any] | None = None
 
-    def fit(self, X_train: ArrayLike, y_train: ArrayLike) -> "XGBTabular":
+    def fit(self, X_train: ArrayLike, y_train: ArrayLike) -> XGBTabular:
         if not _HAS_XGB:
             raise ImportError("xgboost is not installed. pip install xgboost")
         X_tab = sequences_to_tabular(X_train, pooling=self.pooling, k=self.k)
@@ -170,7 +174,7 @@ class SMACrossoverClassifier:
     lookback_short: int = 50
     lookback_long: int = 200
 
-    def fit(self, prices: pd.Series) -> "SMACrossoverClassifier":
+    def fit(self, prices: pd.Series) -> SMACrossoverClassifier:
         if not isinstance(prices, pd.Series):
             raise ValueError("prices must be a pandas Series with a DateTimeIndex")
         if self.lookback_short >= self.lookback_long:

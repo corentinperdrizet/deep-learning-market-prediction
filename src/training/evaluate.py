@@ -1,26 +1,27 @@
 # src/training/evaluate.py
 from __future__ import annotations
-from typing import Dict, Any, Optional
+
+import sys
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .metrics import evaluate_classifier_metrics
 from ..models.baselines import (
     BuyAndHoldClassifier,
     LogisticRegressionTabular,
-    XGBTabular,
     SMACrossoverClassifier,
-    sequences_to_tabular,
+    XGBTabular,
 )
+from .metrics import evaluate_classifier_metrics
 
 
-def evaluate_classifier(y_true: np.ndarray, y_proba: np.ndarray) -> Dict[str, Any]:
+def evaluate_classifier(y_true: np.ndarray, y_proba: np.ndarray) -> dict[str, Any]:
     """Thin wrapper for external use."""
     return evaluate_classifier_metrics(y_true, y_proba)
 
 
-def evaluate_regressor(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, Any]:
+def evaluate_regressor(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, Any]:
     from .metrics import evaluate_regression_metrics
 
     return evaluate_regression_metrics(y_true, y_pred)
@@ -28,8 +29,8 @@ def evaluate_regressor(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, Any]
 
 def _coerce_prices(
     prices: Any,
-    fallback_index: Optional[pd.Index] = None,
-) -> Optional[pd.Series]:
+    fallback_index: pd.Index | None = None,
+) -> pd.Series | None:
     """
     Try to convert `prices` into a pd.Series with a DateTimeIndex.
     Returns None if not possible.
@@ -71,8 +72,8 @@ def _coerce_prices(
 
 
 def run_baselines(
-    dataset: Dict[str, Any],
-    prices: Optional[pd.Series] = None,
+    dataset: dict[str, Any],
+    prices: pd.Series | None = None,
     use_xgb: bool = False,
     pooling_lr: str = "last",
 ) -> pd.DataFrame:

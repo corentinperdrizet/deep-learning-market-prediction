@@ -1,15 +1,16 @@
 # src/training/metrics.py
 from __future__ import annotations
-from typing import Dict, Any
+
+from typing import Any
 
 import numpy as np
 from sklearn.metrics import (
     accuracy_score,
-    f1_score,
-    roc_auc_score,
     average_precision_score,
     brier_score_loss,
+    f1_score,
     precision_recall_curve,
+    roc_auc_score,
 )
 
 
@@ -27,7 +28,7 @@ def _safe_auc_pr(y_true: np.ndarray, y_score: np.ndarray) -> float:
         return float("nan")
 
 
-def evaluate_classifier_metrics(y_true: np.ndarray, y_proba: np.ndarray) -> Dict[str, Any]:
+def evaluate_classifier_metrics(y_true: np.ndarray, y_proba: np.ndarray) -> dict[str, Any]:
     """Return a dict of standard classification metrics.
 
     y_proba: array (N,2) with columns [p0, p1]
@@ -56,7 +57,7 @@ def evaluate_classifier_metrics(y_true: np.ndarray, y_proba: np.ndarray) -> Dict
     return metrics
 
 
-def evaluate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, Any]:
+def evaluate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, Any]:
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     mae = float(np.mean(np.abs(y_true - y_pred)))

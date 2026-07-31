@@ -2,15 +2,15 @@ import argparse
 import os
 import subprocess
 import sys
-from typing import Dict, Any, List
 
-from src.data.dataset import prepare_dataset
 from src.data.config import DataConfig
+from src.data.dataset import prepare_dataset
+from src.track.mlflow_utils import MLflowTracker, flatten_numeric_metrics
 from src.training.utils import select_device, set_seed
-from src.track.mlflow_utils import MLflowTracker
 
 ART_DIR = "data/artifacts"
 FIG_DIR = "experiments/figures"
+
 
 def parse_args():
     p = argparse.ArgumentParser(description="Transformer run with MLflow tracking (subprocess mode)")
@@ -43,32 +43,53 @@ def parse_args():
     p.add_argument("--run-name", default=None)
     return p.parse_args()
 
-def build_cmd(args) -> List[str]:
+
+def build_cmd(args) -> list[str]:
     """
     Build the CLI command to execute your existing Transformer script.
     Adjust flag names to match src.training.run_transformer if needed.
     """
     cmd = [
-        sys.executable, "-m", "src.training.run_transformer",
-        "--ticker", args.ticker,
-        "--interval", args.interval,
-        "--start", args.start,
-        "--test-start", args.test_start,
-        "--horizon", str(args.horizon),
-        "--seq-len", str(args.seq_len),
-        "--d-model", str(args.d_model),
-        "--n-heads", str(args.n_heads),
-        "--n-layers", str(args.n_layers),
-        "--ff", str(args.ff),
-        "--dropout", str(args.dropout),
-        "--pooling", args.pooling,
-        "--batch", str(args.batch),
-        "--epochs", str(args.epochs),
-        "--lr", str(args.lr),
-        "--weight-decay", str(args.weight_decay),
-        "--seed", str(args.seed),
+        sys.executable,
+        "-m",
+        "src.training.run_transformer",
+        "--ticker",
+        args.ticker,
+        "--interval",
+        args.interval,
+        "--start",
+        args.start,
+        "--test-start",
+        args.test_start,
+        "--horizon",
+        str(args.horizon),
+        "--seq-len",
+        str(args.seq_len),
+        "--d-model",
+        str(args.d_model),
+        "--n-heads",
+        str(args.n_heads),
+        "--n-layers",
+        str(args.n_layers),
+        "--ff",
+        str(args.ff),
+        "--dropout",
+        str(args.dropout),
+        "--pooling",
+        args.pooling,
+        "--batch",
+        str(args.batch),
+        "--epochs",
+        str(args.epochs),
+        "--lr",
+        str(args.lr),
+        "--weight-decay",
+        str(args.weight_decay),
+        "--seed",
+        str(args.seed),
     ]
     return cmd
+
 
 def main():
     args = parse_args()
@@ -80,7 +101,7 @@ def main():
         interval=args.interval,
         start=args.start,
         test_start=args.test_start,
-        horizon=args.horizon
+        horizon=args.horizon,
     )
     _ = prepare_dataset(cfg, seq_len=args.seq_len)
 
@@ -96,35 +117,34 @@ def main():
     }
 
     with MLflowTracker(experiment_name=args.experiment, run_name=args.run_name, tags=tags) as trk:
-        trk.log_params({
-            "data": {
-                "ticker": args.ticker,
-                "interval": args.interval,
-                "start": args.start,
-                "test_start": args.test_start,
-                "horizon": args.horizon,
-                "seq_len": args.seq_len
-            },
-            "model": {
-                "type": "TransformerTimeSeriesClassifier",
-                "d_model": args.d_model,
-                "n_heads": args.n_heads,
-                "n_layers": args.n_layers,
-                "ff": args.ff,
-                "dropout": args.dropout,
-                "pooling": args.pooling
-            },
-            "train": {
-                "batch": args.batch,
-                "epochs": args.epochs,
-                "lr": args.lr,
-                "weight_decay": args.weight_decay
-            },
-            "env": {
-                "device": str(device),
-                "seed": args.seed
+        trk.log_params(
+            {
+                "data": {
+                    "ticker": args.ticker,
+                    "interval": args.interval,
+                    "start": args.start,
+                    "test_start": args.test_start,
+                    "horizon": args.horizon,
+                    "seq_len": args.seq_len,
+                },
+                "model": {
+                    "type": "TransformerTimeSeriesClassifier",
+                    "d_model": args.d_model,
+                    "n_heads": args.n_heads,
+                    "n_layers": args.n_layers,
+                    "ff": args.ff,
+                    "dropout": args.dropout,
+                    "pooling": args.pooling,
+                },
+                "train": {
+                    "batch": args.batch,
+                    "epochs": args.epochs,
+                    "lr": args.lr,
+                    "weight_decay": args.weight_decay,
+                },
+                "env": {"device": str(device), "seed": args.seed},
             }
-        })
+        )
 
         cmd = build_cmd(args)
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -156,13 +176,22 @@ def main():
         rep_path = os.path.join(ART_DIR, "transformer_test_report.json")
         rep = MLflowTracker.try_read_json(rep_path)
         if isinstance(rep, dict):
-            trk.log_metrics({f"test/{k}": v for k, v in rep.items()})
+            numeric = flatten_numeric_metrics(rep, prefix="test")
+            if numeric:
+                trk.log_metrics(numeric)
 
-        for fig in ["loss.png", "metrics.png", "lr.png", "lstm_equity.png", "lstm_drawdown.png"]:
+        for fig in [
+            "transformer_loss.png",
+            "transformer_metrics.png",
+            "transformer_lr.png",
+            "transformer_equity.png",
+            "transformer_drawdown.png",
+        ]:
             pth = os.path.join(FIG_DIR, fig)
             trk.maybe_log_file(pth, artifact_path="figures")
 
         trk.set_tags({"run_status": "completed"})
+
 
 if __name__ == "__main__":
     main()

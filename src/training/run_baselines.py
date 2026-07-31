@@ -1,69 +1,45 @@
 # src/training/run_baselines.py
 from __future__ import annotations
-import argparse
-from pathlib import Path
-import sys
 
-import pandas as pd
+import argparse
+import sys
+from pathlib import Path
+
+from src.data.config import DataConfig
 
 # --- Data imports
 from src.data.dataset import prepare_dataset
-
-# Optional helpers that may or may not exist in your repo
-try:
-    from src.data.loaders import load_prices  # pd.Series with DateTimeIndex
-except Exception:
-    load_prices = None
-
-# Fallback bridge to construct a default cfg if your pipeline requires one
-try:
-    from src.data.config_bridge import make_default_cfg  # optional helper
-except Exception:
-    make_default_cfg = None
-
+from src.data.loaders import load_prices  # pd.Series with DateTimeIndex
 from src.training.evaluate import run_baselines
 
 
 def _build_cfg(args):
     """
-    Return a config object/dict suitable for prepare_dataset(cfg=...).
-    Priority:
-    1) --config path (YAML) if provided and PyYAML available
-    2) src.data.config_bridge.make_default_cfg if available
-    3) a minimal dict with common keys
+    Return a DataConfig suitable for prepare_dataset(cfg=...), built directly
+    from the CLI args so it always matches the price series loaded for the
+    SMA baseline (same ticker/interval/start/end/test_start).
+
+    A --config YAML path, if provided, takes priority and is returned as-is
+    (advanced/exotic setups only).
     """
-    # 1) Try YAML path
     if args.config is not None:
         try:
             import yaml  # type: ignore
         except Exception:
             print(
-                "[run_baselines] Warning: PyYAML not installed; ignoring --config and using defaults.",
+                "[run_baselines] Warning: PyYAML not installed; ignoring --config and using CLI args.",
                 file=sys.stderr,
             )
         else:
-            with open(args.config, "r") as f:
-                cfg = yaml.safe_load(f)
-            return cfg
+            with open(args.config) as f:
+                return yaml.safe_load(f)
 
-    # 2) Try bridge (handles dataclass/DataConfig etc.)
-    if make_default_cfg is not None:
-        try:
-            return make_default_cfg(ticker=args.ticker, interval=args.interval)
-        except Exception:
-            pass
-
-    # 3) Minimal dict fallback (align keys with your pipeline)
-    return dict(
+    return DataConfig(
         ticker=args.ticker,
         interval=args.interval,
-        label_type="direction",
-        horizon=1,
-        seq_len=64,
-        scaler="standard",
-        # If your dataset expects explicit dates, set None and let it infer
-        val_start=None,
-        test_start=None,
+        start=args.start,
+        end=args.end,
+        test_start=args.test_start,
     )
 
 
@@ -71,41 +47,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", type=str, default="BTC-USD")
     parser.add_argument("--interval", type=str, default="1d")
+    parser.add_argument("--start", type=str, default="2018-01-01")
+    parser.add_argument("--end", type=str, default=None)
+    parser.add_argument("--test-start", type=str, default="2023-01-01")
     parser.add_argument("--use-xgb", action="store_true")
-    parser.add_argument(
-        "--pooling", type=str, default="last", choices=["last", "mean", "flatten_last_k"]
-    )
-    parser.add_argument(
-        "--out", type=Path, default=Path("data/artifacts/baselines_metrics.csv")
-    )
+    parser.add_argument("--pooling", type=str, default="last", choices=["last", "mean", "flatten_last_k"])
+    parser.add_argument("--out", type=Path, default=Path("data/artifacts/baselines_metrics.csv"))
     parser.add_argument("--config", type=str, default=None, help="Path to data config YAML (optional)")
     args = parser.parse_args()
 
-    # Build cfg and call prepare_dataset(cfg=...)
     cfg = _build_cfg(args)
-    try:
-        dataset = prepare_dataset(cfg)
-    except TypeError:
-        # Some pipelines accept both signatures; retry without cfg
-        dataset = prepare_dataset()
+    dataset = prepare_dataset(cfg)
 
-    # Try to load a price series aligned with your dataset index
-    px = None
-    if load_prices is not None:
-        try:
-            px = load_prices(args.ticker, args.interval)  # should be a Series(DateTimeIndex)
-        except Exception:
-            px = None
-
-    # Some pipelines embed prices in the dataset dict; attempt to use them
-    if px is None:
-        for key in ("prices", "px", "close", "close_price"):
-            if key in dataset:
-                try:
-                    px = dataset[key]
-                    break
-                except Exception:
-                    pass
+    # Load a price series aligned with the SAME (ticker, interval, start, end)
+    # used to build the dataset, so SMA baseline dates match the val/test index.
+    px = load_prices(args.ticker, args.interval, start=args.start, end=args.end)
 
     df = run_baselines(dataset, prices=px, use_xgb=args.use_xgb, pooling_lr=args.pooling)
 

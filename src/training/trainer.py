@@ -1,15 +1,15 @@
 # src/training/trainer.py
-from dataclasses import dataclass, asdict
-from typing import Dict, Tuple, Optional
-import os
 import csv
+import os
+from dataclasses import asdict, dataclass
+
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from sklearn.metrics import average_precision_score, roc_auc_score, f1_score
+from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import DataLoader
 
-from .utils import get_device, save_checkpoint, ensure_dir
+from .utils import ensure_dir, get_device, save_checkpoint
 
 
 @dataclass
@@ -21,15 +21,16 @@ class TrainConfig:
     ckpt_path: str = "data/artifacts/lstm_classifier.pt"
     log_csv: str = "data/artifacts/lstm_logs.csv"
     weight_decay: float = 0.0
-    pos_weight: Optional[float] = None          # for class imbalance: BCEWithLogitsLoss(pos_weight=...)
+    pos_weight: float | None = None  # for class imbalance: BCEWithLogitsLoss(pos_weight=...)
     scheduler_reduce_lr: bool = True
     scheduler_factor: float = 0.5
     scheduler_patience: int = 2
     scheduler_min_lr: float = 1e-6
-    grad_clip_norm: Optional[float] = 1.0
+    grad_clip_norm: float | None = 1.0
+    optimizer: str = "adam"  # "adam" or "adamw"
 
 
-def _compute_metrics(y_true: torch.Tensor, y_logits: torch.Tensor) -> Dict[str, float]:
+def _compute_metrics(y_true: torch.Tensor, y_logits: torch.Tensor) -> dict[str, float]:
     y_true_np = y_true.detach().cpu().numpy()
     y_proba_np = torch.sigmoid(y_logits).detach().cpu().numpy()
     y_pred_np = (y_proba_np >= 0.5).astype("int32")
@@ -56,7 +57,7 @@ def train_one_epoch(
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    grad_clip_norm: Optional[float] = 1.0,
+    grad_clip_norm: float | None = 1.0,
 ) -> float:
     model.train()
     running_loss = 0.0
@@ -87,7 +88,7 @@ def validate_one_epoch(
     loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
-) -> Tuple[float, Dict[str, float]]:
+) -> tuple[float, dict[str, float]]:
     model.eval()
     running_loss = 0.0
     n_samples = 0
@@ -114,8 +115,16 @@ def validate_one_epoch(
     return val_loss, metrics
 
 
-def _metric_value(metrics: Dict[str, float], name: str) -> float:
+def _metric_value(metrics: dict[str, float], name: str) -> float:
     return metrics.get(name, float("nan"))
+
+
+def _make_optimizer(name: str, params, lr: float, weight_decay: float) -> torch.optim.Optimizer:
+    if name == "adam":
+        return torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
+    if name == "adamw":
+        return torch.optim.AdamW(params, lr=lr, weight_decay=weight_decay)
+    raise ValueError(f"Unknown optimizer '{name}', expected 'adam' or 'adamw'")
 
 
 def fit(
@@ -123,7 +132,16 @@ def fit(
     train_loader: DataLoader,
     val_loader: DataLoader,
     cfg: TrainConfig,
-) -> Dict[str, float]:
+    model_config: dict | None = None,
+) -> dict[str, float]:
+    """Train with early stopping, checkpointing the best-monitor-score epoch.
+
+    model_config, if given, is architecture metadata (e.g. hidden_size,
+    num_layers, d_model, pooling -- whatever the caller's model class needs
+    to be reconstructed) persisted alongside the checkpoint's state_dict, so
+    a downstream consumer (e.g. src/serving/) never has to hardcode or guess
+    the architecture that produced a given .pt file.
+    """
     device = get_device()
     model = model.to(device)
 
@@ -132,7 +150,7 @@ def fit(
         pos_weight_tensor = torch.tensor([cfg.pos_weight], device=device)
 
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    optimizer = _make_optimizer(cfg.optimizer, model.parameters(), cfg.lr, cfg.weight_decay)
 
     # Compat: certaines versions de torch n'acceptent pas 'verbose' dans ReduceLROnPlateau
     scheduler = (
@@ -211,7 +229,15 @@ def fit(
             best_score = monitor_value
             best_epoch = epoch
             epochs_no_improve = 0
-            save_checkpoint({"epoch": epoch, "model_state": model.state_dict(), "config": asdict(cfg)}, cfg.ckpt_path)
+            save_checkpoint(
+                {
+                    "epoch": epoch,
+                    "model_state": model.state_dict(),
+                    "config": asdict(cfg),
+                    "model_config": model_config,
+                },
+                cfg.ckpt_path,
+            )
         else:
             epochs_no_improve += 1
 
@@ -225,7 +251,9 @@ def fit(
         )
 
         if epochs_no_improve >= cfg.patience:
-            print(f"Early stopping at epoch {epoch} (best {cfg.monitor}={best_score:.4f} at epoch {best_epoch})")
+            print(
+                f"Early stopping at epoch {epoch} (best {cfg.monitor}={best_score:.4f} at epoch {best_epoch})"
+            )
             break
 
     return {"best_epoch": best_epoch, "best_score": best_score, "monitor": cfg.monitor}

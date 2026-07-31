@@ -1,0 +1,31 @@
+[project]
+name = "deep-learning-market-prediction"
+version = "0.2.0"
+description = "End-to-end deep learning pipeline for financial market direction prediction (data -> models -> calibration -> backtest -> serving)"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+exclude = ["env", "notebooks", "data", "experiments"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+  "E501",  # line length handled by formatter, some data/model config lines are long
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tst/*" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tst"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+  "slow: marks tests that download data or train models end-to-end",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["src/app/streamlit_app.py"]

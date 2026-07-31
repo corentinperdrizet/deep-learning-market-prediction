@@ -1,24 +1,28 @@
 # src/training/calibration.py
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from joblib import dump, load
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss
-from joblib import dump, load
-import matplotlib.pyplot as plt
 
 EPS = 1e-12
+
 
 def _clip_probs(p: np.ndarray) -> np.ndarray:
     """Numerically safe clipping for probabilities."""
     return np.clip(p, EPS, 1.0 - EPS)
 
+
 def _logit(p: np.ndarray) -> np.ndarray:
     """Logit transform with clipping."""
     p = _clip_probs(p)
     return np.log(p / (1.0 - p))
+
 
 @dataclass
 class PlattCalibrator:
@@ -27,10 +31,11 @@ class PlattCalibrator:
     learns a sigmoid transformation on validation probabilities.
     Form: p' = sigmoid(a * logit(p) + b)
     """
-    a: Optional[float] = None
-    b: Optional[float] = None
 
-    def fit(self, y_true: np.ndarray, p_val: np.ndarray) -> "PlattCalibrator":
+    a: float | None = None
+    b: float | None = None
+
+    def fit(self, y_true: np.ndarray, p_val: np.ndarray) -> PlattCalibrator:
         """
         Fit 'a' and 'b' by maximizing Bernoulli log-likelihood via Newton-Raphson.
         This avoids refitting the base model; we calibrate its outputs instead.
@@ -52,8 +57,7 @@ class PlattCalibrator:
             h_ab = np.sum(w * z)
             h_bb = np.sum(w)
             # Solve the 2x2 Newton system with a tiny jitter
-            H = np.array([[h_aa, h_ab],
-                          [h_ab, h_bb]]) + np.eye(2) * 1e-8
+            H = np.array([[h_aa, h_ab], [h_ab, h_bb]]) + np.eye(2) * 1e-8
             g = np.array([g_a, g_b])
             step = np.linalg.solve(H, g)
             a += step[0]
@@ -76,7 +80,7 @@ class PlattCalibrator:
         dump({"a": self.a, "b": self.b}, path)
 
     @staticmethod
-    def load(path: str) -> "PlattCalibrator":
+    def load(path: str) -> PlattCalibrator:
         """Load a saved PlattCalibrator."""
         obj = load(path)
         return PlattCalibrator(a=obj["a"], b=obj["b"])
@@ -87,9 +91,10 @@ class IsotonicCalibrator:
     """
     Non-parametric monotonic calibration using isotonic regression.
     """
-    iso: Optional[IsotonicRegression] = None
 
-    def fit(self, y_true: np.ndarray, p_val: np.ndarray) -> "IsotonicCalibrator":
+    iso: IsotonicRegression | None = None
+
+    def fit(self, y_true: np.ndarray, p_val: np.ndarray) -> IsotonicCalibrator:
         """Fit isotonic regression on validation probabilities."""
         self.iso = IsotonicRegression(out_of_bounds="clip")
         self.iso.fit(p_val.ravel(), y_true.astype(np.float64).ravel())
@@ -105,13 +110,15 @@ class IsotonicCalibrator:
         dump(self.iso, path)
 
     @staticmethod
-    def load(path: str) -> "IsotonicCalibrator":
+    def load(path: str) -> IsotonicCalibrator:
         """Load a saved IsotonicCalibrator."""
         iso = load(path)
         return IsotonicCalibrator(iso=iso)
 
 
-def expected_calibration_error(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Tuple[float, float, pd.DataFrame]:
+def expected_calibration_error(
+    y_true: np.ndarray, p: np.ndarray, n_bins: int = 10
+) -> tuple[float, float, pd.DataFrame]:
     """
     Compute ECE (weighted mean |accuracy - confidence|) and MCE (max gap).
     Returns the per-bin calibration table as well.
@@ -140,7 +147,7 @@ def expected_calibration_error(y_true: np.ndarray, p: np.ndarray, n_bins: int = 
     return float(ece), float(mce), df
 
 
-def calibration_report(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> Dict[str, float]:
+def calibration_report(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> dict[str, float]:
     """
     Convenience wrapper to compute ECE/MCE and Brier score on probabilities.
     """
@@ -156,7 +163,7 @@ def plot_reliability_diagram(
     n_bins: int = 10,
     title: str = "Calibration curve",
     show: bool = True,
-    savepath: Optional[str] = None
+    savepath: str | None = None,
 ) -> pd.DataFrame:
     """
     Plot reliability diagram: empirical accuracy vs mean predicted probability per bin.

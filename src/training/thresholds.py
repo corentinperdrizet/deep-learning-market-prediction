@@ -1,22 +1,25 @@
 # src/training/thresholds.py
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
-    f1_score,
     accuracy_score,
+    average_precision_score,
+    f1_score,
     precision_score,
     recall_score,
     roc_auc_score,
-    average_precision_score,
 )
-import matplotlib.pyplot as plt
+
 
 def _ensure_1d(a):
     """Ensure a 1-D float numpy array."""
     return np.asarray(a).astype(float).ravel()
+
 
 def _strategy_returns_long_flat(p: np.ndarray, threshold: float, returns_next: np.ndarray) -> np.ndarray:
     """
@@ -27,6 +30,7 @@ def _strategy_returns_long_flat(p: np.ndarray, threshold: float, returns_next: n
     """
     pos = (p >= threshold).astype(float)
     return pos * returns_next
+
 
 def _annualized_sharpe(r: np.ndarray, freq_per_year: int = 252) -> float:
     """
@@ -40,18 +44,20 @@ def _annualized_sharpe(r: np.ndarray, freq_per_year: int = 252) -> float:
         return 0.0
     return float(np.sqrt(freq_per_year) * mu / sigma)
 
+
 @dataclass
 class ThresholdSearchResult:
     best_threshold: float
     criterion_value: float
     table: pd.DataFrame
 
+
 def grid_search_threshold(
     y_true: np.ndarray,
     y_proba: np.ndarray,
-    thresholds: Optional[np.ndarray] = None,
+    thresholds: np.ndarray | None = None,
     objective: str = "f1",
-    returns_next: Optional[np.ndarray] = None,
+    returns_next: np.ndarray | None = None,
     freq_per_year: int = 252,
 ) -> ThresholdSearchResult:
     """
@@ -91,8 +97,7 @@ def grid_search_threshold(
         rows.append((th, acc, f1, prec, rec, roc_auc, pr_auc, sharp))
 
     df = pd.DataFrame(
-        rows,
-        columns=["threshold", "accuracy", "f1", "precision", "recall", "roc_auc", "pr_auc", "sharpe"]
+        rows, columns=["threshold", "accuracy", "f1", "precision", "recall", "roc_auc", "pr_auc", "sharpe"]
     )
 
     if objective == "f1":
@@ -108,7 +113,10 @@ def grid_search_threshold(
     best_th = float(df.loc[idx, "threshold"])
     return ThresholdSearchResult(best_threshold=best_th, criterion_value=best_val, table=df)
 
-def plot_metric_vs_threshold(df: pd.DataFrame, metric: str = "f1", show: bool = True, savepath: Optional[str] = None) -> None:
+
+def plot_metric_vs_threshold(
+    df: pd.DataFrame, metric: str = "f1", show: bool = True, savepath: str | None = None
+) -> None:
     """
     Plot any metric present in the DataFrame against the threshold.
     Common choices: 'f1' or 'sharpe'.

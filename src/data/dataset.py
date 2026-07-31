@@ -14,15 +14,14 @@ from .sequences import build_sequences
 from .paths import data_dir
 
 
-def prepare_dataset(cfg: DataConfig, seq_len: int = 64) -> Dict[str, Any]:
-    """End-to-end preparation of dataset ready for modeling.
+def build_feature_frame(cfg: DataConfig) -> pd.DataFrame:
+    """Download -> quality-check -> feature-engineer -> label -> drop NA.
 
-    Returns a dict with:
-      - X_train, y_train, X_val, y_val, X_test, y_test (numpy arrays)
-      - features: list of feature names
-      - idx: dict of index ranges for splits
-      - meta: info about ticker/interval/labeling
-    Saves scaler artifact and processed parquet files if configured.
+    Returns the single dataframe (Close + features + target) that both
+    prepare_dataset() (one fixed split) and the walk-forward CV driver
+    (src/validation/walkforward.py, many splits) build on top of, so the
+    download/feature-engineering step never needs to be duplicated or
+    re-run per fold.
     """
     # 1) Load
     df = download_ohlcv(cfg.ticker, cfg.start, cfg.end, cfg.interval, cache=cfg.cache_raw)
@@ -54,9 +53,22 @@ def prepare_dataset(cfg: DataConfig, seq_len: int = 64) -> Dict[str, Any]:
 
     # 5) Align & drop NA
     data = pd.concat([df[["Close"]], feats, y.rename("target")], axis=1)
-    data = data.dropna()
+    return data.dropna()
 
-    # 6) Train/Val/Test split by time
+
+def prepare_dataset(cfg: DataConfig, seq_len: int = 64) -> Dict[str, Any]:
+    """End-to-end preparation of dataset ready for modeling.
+
+    Returns a dict with:
+      - X_train, y_train, X_val, y_val, X_test, y_test (numpy arrays)
+      - features: list of feature names
+      - idx: dict of index ranges for splits
+      - meta: info about ticker/interval/labeling
+    Saves scaler artifact and processed parquet files if configured.
+    """
+    data = build_feature_frame(cfg)
+
+    # Train/Val/Test split by time
     tr_idx, va_idx, te_idx = time_splits(data, cfg.val_start, cfg.test_start)
     features = [c for c in FEATURE_COLUMNS_DEFAULT if c in data.columns]
 
@@ -67,24 +79,24 @@ def prepare_dataset(cfg: DataConfig, seq_len: int = 64) -> Dict[str, Any]:
     y_val = data.loc[va_idx, "target"].values
     y_test = data.loc[te_idx, "target"].values
 
-    # 7) Scaling (fit on train only)
+    # Scaling (fit on train only)
     scaler = fit_scaler(X_train_df, robust=cfg.use_robust_scaler)
-    save_scaler(scaler)
+    save_scaler(scaler, ticker=cfg.ticker)
     X_train = transform_with_scaler(scaler, X_train_df)
     X_val = transform_with_scaler(scaler, X_val_df)
     X_test = transform_with_scaler(scaler, X_test_df)
 
-    # 8) Sequences
+    # Sequences
     X_train_seq, y_train_seq = build_sequences(X_train, y_train, seq_len=seq_len)
     X_val_seq, y_val_seq = build_sequences(X_val, y_val, seq_len=seq_len)
     X_test_seq, y_test_seq = build_sequences(X_test, y_test, seq_len=seq_len)
 
-    # 9) Save processed (optional)
+    # Save processed (optional)
     if cfg.cache_processed:
         outdir = data_dir() / "processed"
         pd.DataFrame(data).to_parquet(outdir / f"{cfg.ticker.replace('/', '-')}_{cfg.interval}_dataset.parquet")
 
-    # 10) Pack results
+    # Pack results
     result = {
         "X_train": X_train_seq,
         "y_train": y_train_seq,

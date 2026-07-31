@@ -2,15 +2,15 @@ import argparse
 import os
 import subprocess
 import sys
-from typing import Dict, Any, List, Optional
 
-from src.data.dataset import prepare_dataset
 from src.data.config import DataConfig
+from src.data.dataset import prepare_dataset
+from src.track.mlflow_utils import MLflowTracker, flatten_numeric_metrics
 from src.training.utils import select_device, set_seed
-from src.track.mlflow_utils import MLflowTracker
 
 ART_DIR = "data/artifacts"
 FIG_DIR = "experiments/figures"
+
 
 def parse_args():
     p = argparse.ArgumentParser(description="LSTM run with MLflow tracking (subprocess mode)")
@@ -39,56 +39,50 @@ def parse_args():
     p.add_argument("--run-name", default=None)
     return p.parse_args()
 
-import math
 
-def _flatten_numeric(prefix, obj, out):
-    """
-    Recursively flatten dicts and keep only finite numeric leaf values.
-    Keys are joined with '/' and prefixed with 'prefix'.
-    """
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            key = f"{prefix}/{k}" if prefix else str(k)
-            _flatten_numeric(key, v, out)
-    elif isinstance(obj, (list, tuple)):
-        # Option: skip lists (or enumerate if you want per-index metrics)
-        return
-    else:
-        # Keep only finite numbers
-        if isinstance(obj, (int, float)) and math.isfinite(float(obj)):
-            out[prefix] = float(obj)
-
-# After: rep = MLflowTracker.try_read_json(report_path)
-
-
-
-def build_cmd(args) -> List[str]:
+def build_cmd(args) -> list[str]:
     """
     Build the CLI command to execute your existing script:
     'python -m src.training.run_lstm ...'
     Adjust flag names here if your run_lstm.py uses different ones.
     """
     cmd = [
-        sys.executable, "-m", "src.training.run_lstm",
-        "--ticker", args.ticker,
-        "--interval", args.interval,
-        "--start", args.start,
-        "--test-start", args.test_start,
-        "--horizon", str(args.horizon),
-        "--seq-len", str(args.seq_len),
-        "--hidden", str(args.hidden),
-        "--layers", str(args.layers),
-        "--dropout", str(args.dropout),
-        "--batch", str(args.batch),
-        "--epochs", str(args.epochs),
-        "--lr", str(args.lr),
-        "--seed", str(args.seed),
+        sys.executable,
+        "-m",
+        "src.training.run_lstm",
+        "--ticker",
+        args.ticker,
+        "--interval",
+        args.interval,
+        "--start",
+        args.start,
+        "--test-start",
+        args.test_start,
+        "--horizon",
+        str(args.horizon),
+        "--seq-len",
+        str(args.seq_len),
+        "--hidden",
+        str(args.hidden),
+        "--layers",
+        str(args.layers),
+        "--dropout",
+        str(args.dropout),
+        "--batch",
+        str(args.batch),
+        "--epochs",
+        str(args.epochs),
+        "--lr",
+        str(args.lr),
+        "--seed",
+        str(args.seed),
     ]
     if args.bidirectional:
         cmd.append("--bidirectional")
     if args.pos_weight is not None:
         cmd += ["--pos-weight", str(args.pos_weight)]
     return cmd
+
 
 def main():
     args = parse_args()
@@ -101,7 +95,7 @@ def main():
         interval=args.interval,
         start=args.start,
         test_start=args.test_start,
-        horizon=args.horizon
+        horizon=args.horizon,
     )
     _ = prepare_dataset(cfg, seq_len=args.seq_len)
 
@@ -117,33 +111,32 @@ def main():
 
     with MLflowTracker(experiment_name=args.experiment, run_name=args.run_name, tags=tags) as trk:
         # Log hyperparameters upfront
-        trk.log_params({
-            "data": {
-                "ticker": args.ticker,
-                "interval": args.interval,
-                "start": args.start,
-                "test_start": args.test_start,
-                "horizon": args.horizon,
-                "seq_len": args.seq_len
-            },
-            "model": {
-                "type": "LSTMClassifier",
-                "hidden": args.hidden,
-                "layers": args.layers,
-                "dropout": args.dropout,
-                "bidirectional": args.bidirectional
-            },
-            "train": {
-                "batch": args.batch,
-                "epochs": args.epochs,
-                "lr": args.lr,
-                "pos_weight": args.pos_weight
-            },
-            "env": {
-                "device": str(device),
-                "seed": args.seed
+        trk.log_params(
+            {
+                "data": {
+                    "ticker": args.ticker,
+                    "interval": args.interval,
+                    "start": args.start,
+                    "test_start": args.test_start,
+                    "horizon": args.horizon,
+                    "seq_len": args.seq_len,
+                },
+                "model": {
+                    "type": "LSTMClassifier",
+                    "hidden": args.hidden,
+                    "layers": args.layers,
+                    "dropout": args.dropout,
+                    "bidirectional": args.bidirectional,
+                },
+                "train": {
+                    "batch": args.batch,
+                    "epochs": args.epochs,
+                    "lr": args.lr,
+                    "pos_weight": args.pos_weight,
+                },
+                "env": {"device": str(device), "seed": args.seed},
             }
-        })
+        )
 
         # Run your existing training script as a subprocess
         cmd = build_cmd(args)
@@ -180,16 +173,22 @@ def main():
         report_path = os.path.join(ART_DIR, "lstm_test_report.json")
         rep = MLflowTracker.try_read_json(report_path)
         if isinstance(rep, dict):
-            numeric = {}
-            _flatten_numeric("test", rep, numeric)  # prefix everything with 'test/*'
+            numeric = flatten_numeric_metrics(rep, prefix="test")
             if numeric:
                 trk.log_metrics(numeric)
         # Log figures if present
-        for fig in ["loss.png", "metrics.png", "lr.png", "lstm_equity.png", "lstm_drawdown.png"]:
+        for fig in [
+            "lstm_loss.png",
+            "lstm_metrics.png",
+            "lstm_lr.png",
+            "lstm_equity.png",
+            "lstm_drawdown.png",
+        ]:
             pth = os.path.join(FIG_DIR, fig)
             trk.maybe_log_file(pth, artifact_path="figures")
 
         trk.set_tags({"run_status": "completed"})
+
 
 if __name__ == "__main__":
     main()

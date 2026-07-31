@@ -1,10 +1,13 @@
 # src/backtest/engine.py
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
 from .costs import per_period_cost_from_turnover
+
 
 @dataclass
 class BacktestResult:
@@ -21,8 +24,10 @@ class BacktestResult:
       - equity_net: cumulative equity (product of 1+ret_net)
       - drawdown: equity / rolling max - 1
     """
+
     df: pd.DataFrame
     name: str = "strategy"
+
 
 def _to_series(x, index=None, name=None) -> pd.Series:
     """
@@ -36,9 +41,10 @@ def _to_series(x, index=None, name=None) -> pd.Series:
     x = np.asarray(x)
     return pd.Series(x, index=index, name=name)
 
+
 def backtest(
-    ret_asset,              # pandas Series of simple returns (preferred)
-    signal_desired,         # desired position Series before execution shift
+    ret_asset,  # pandas Series of simple returns (preferred)
+    signal_desired,  # desired position Series before execution shift
     fees_bps: float = 10.0,
     slippage_bps: float = 0.0,
     max_abs_pos: float = 1.0,
@@ -65,7 +71,7 @@ def backtest(
 
     if not s.index.equals(r.index):
         s = s.reindex(r.index)
-    
+
     # +1 bar shift to avoid look-ahead bias
     pos = s.shift(1).fillna(0.0)
     if max_abs_pos is not None:
@@ -76,9 +82,7 @@ def backtest(
     turnover = (pos - pos.shift(1).fillna(0.0)).abs()
     turnover.name = "turnover"
 
-    cost = per_period_cost_from_turnover(
-        turnover, fees_bps=fees_bps, slippage_bps=slippage_bps, name="cost"
-    )
+    cost = per_period_cost_from_turnover(turnover, fees_bps=fees_bps, slippage_bps=slippage_bps, name="cost")
 
     # PnL
     ret_gross = (pos * r).rename("ret_gross")

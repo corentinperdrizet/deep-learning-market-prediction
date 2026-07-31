@@ -1,8 +1,9 @@
 # src/backtest/metrics.py
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict
+
 
 def _periods_per_year(index: pd.Index, fallback: int = 365) -> int:
     """
@@ -21,7 +22,8 @@ def _periods_per_year(index: pd.Index, fallback: int = 365) -> int:
                     return 252
     return fallback
 
-def cagr(returns: pd.Series, periods_per_year: Optional[int] = None) -> float:
+
+def cagr(returns: pd.Series, periods_per_year: int | None = None) -> float:
     """
     CAGR = (prod(1 + r))^(periods_per_year / N) - 1
     """
@@ -34,7 +36,8 @@ def cagr(returns: pd.Series, periods_per_year: Optional[int] = None) -> float:
         return np.nan
     return total_return ** (periods_per_year / n) - 1.0
 
-def sharpe(returns: pd.Series, rf: float = 0.0, periods_per_year: Optional[int] = None) -> float:
+
+def sharpe(returns: pd.Series, rf: float = 0.0, periods_per_year: int | None = None) -> float:
     """
     Annualized Sharpe ratio using sample std dev:
       Sharpe = sqrt(PY) * (mean(r - rf/PY) / std(r - rf/PY))
@@ -44,11 +47,12 @@ def sharpe(returns: pd.Series, rf: float = 0.0, periods_per_year: Optional[int] 
         periods_per_year = _periods_per_year(r.index)
     ex = r - rf / periods_per_year
     mu, sigma = ex.mean(), ex.std(ddof=1)
-    if sigma == 0 or np.isnan(sigma):
+    if np.isnan(sigma) or sigma < 1e-12:
         return np.nan
     return np.sqrt(periods_per_year) * (mu / sigma)
 
-def sortino(returns: pd.Series, rf: float = 0.0, periods_per_year: Optional[int] = None) -> float:
+
+def sortino(returns: pd.Series, rf: float = 0.0, periods_per_year: int | None = None) -> float:
     """
     Annualized Sortino ratio with downside deviation.
     """
@@ -59,9 +63,10 @@ def sortino(returns: pd.Series, rf: float = 0.0, periods_per_year: Optional[int]
     downside = ex.copy()
     downside[downside > 0] = 0.0
     dd_sigma = downside.std(ddof=1)
-    if dd_sigma == 0 or np.isnan(dd_sigma):
+    if np.isnan(dd_sigma) or dd_sigma < 1e-12:
         return np.nan
     return np.sqrt(periods_per_year) * (ex.mean() / dd_sigma)
+
 
 def max_drawdown(equity: pd.Series) -> float:
     """
@@ -72,7 +77,8 @@ def max_drawdown(equity: pd.Series) -> float:
     dd = e / run_max - 1.0
     return dd.min()
 
-def calmar(returns: pd.Series, equity: Optional[pd.Series] = None, periods_per_year: Optional[int] = None) -> float:
+
+def calmar(returns: pd.Series, equity: pd.Series | None = None, periods_per_year: int | None = None) -> float:
     """
     Calmar ratio = CAGR / |Max Drawdown|
     """
@@ -84,11 +90,13 @@ def calmar(returns: pd.Series, equity: Optional[pd.Series] = None, periods_per_y
         return np.nan
     return c / mdd
 
+
 def turnover(turn: pd.Series) -> float:
     """
     Average turnover (mean absolute position change per period).
     """
     return float(turn.dropna().mean())
+
 
 def hit_ratio(returns: pd.Series) -> float:
     """
@@ -99,14 +107,15 @@ def hit_ratio(returns: pd.Series) -> float:
         return np.nan
     return float((r > 0).mean())
 
+
 def summary_kpis(
     bt_df: pd.DataFrame,
     ret_col: str = "ret_net",
     turnover_col: str = "turnover",
     equity_col: str = "equity_net",
-    periods_per_year: Optional[int] = None,
+    periods_per_year: int | None = None,
     rf: float = 0.0,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Compute a dictionary of key portfolio metrics for a backtest dataframe.
     """

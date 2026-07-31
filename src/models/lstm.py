@@ -1,5 +1,5 @@
 # src/models/lstm.py
-from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -18,7 +18,7 @@ class LSTMClassifier(nn.Module):
         num_layers: int = 2,
         dropout: float = 0.2,
         bidirectional: bool = False,
-        proj_head: Optional[nn.Module] = None,
+        proj_head: nn.Module | None = None,
     ):
         super().__init__()
         self.input_dim = input_dim
@@ -41,8 +41,8 @@ class LSTMClassifier(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, T, F)
-        out, _ = self.lstm(x)           # out: (B, T, H*(1 or 2))
-        last = out[:, -1, :]            # last hidden state at final timestep
+        out, _ = self.lstm(x)  # out: (B, T, H*(1 or 2))
+        last = out[:, -1, :]  # last hidden state at final timestep
         last = self.dropout(last)
         logits = self.head(last).squeeze(-1)  # (B,)
         return logits
